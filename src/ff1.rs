@@ -1,4 +1,4 @@
-use aes::{block_cipher_trait::generic_array::GenericArray, Aes128, BlockCipher};
+use aes::{block_cipher_trait::generic_array::GenericArray, BlockCipher};
 use byteorder::{BigEndian, WriteBytesExt};
 use num_bigint::BigUint;
 use num_traits::{identities::Zero, ToPrimitive};
@@ -25,12 +25,12 @@ fn str_radix(mut x: BigUint, radix: Radix, m: usize) -> Vec<Radix> {
     res
 }
 
-pub struct FF1 {
-    ciph: Aes128,
+pub struct FF1<CIPH: BlockCipher> {
+    ciph: CIPH,
     radix: Radix,
 }
 
-impl FF1 {
+impl<CIPH: BlockCipher> FF1<CIPH> {
     fn prf(&self, x: &[u8]) -> [u8; 16] {
         let m = x.len() / 16;
         let mut y = [0u8; 16];
@@ -45,7 +45,7 @@ impl FF1 {
     }
 
     pub fn new(key: &[u8], radix: Radix) -> Self {
-        let ciph = Aes128::new(GenericArray::from_slice(key));
+        let ciph = CIPH::new(GenericArray::from_slice(key));
         FF1 { ciph, radix }
     }
 
@@ -124,11 +124,20 @@ impl FF1 {
 
 #[cfg(test)]
 mod tests {
+    use aes::{Aes128, Aes192, Aes256};
+
     use super::{FF1, Radix};
 
     #[test]
     fn test_vectors() {
+        enum AesType {
+            AES128,
+            AES192,
+            AES256,
+        };
+
         struct TestVector {
+            aes: AesType,
             key: Vec<u8>,
             radix: Radix,
             tweak: Vec<u8>,
@@ -140,6 +149,7 @@ mod tests {
             // From https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/FF1samples.pdf
             TestVector {
                 // Sample #1
+                aes: AesType::AES128,
                 key: vec![
                     0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
                     0xCF, 0x4F, 0x3C,
@@ -151,6 +161,7 @@ mod tests {
             },
             TestVector {
                 // Sample #2
+                aes: AesType::AES128,
                 key: vec![
                     0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
                     0xCF, 0x4F, 0x3C,
@@ -162,6 +173,7 @@ mod tests {
             },
             TestVector {
                 // Sample #3
+                aes: AesType::AES128,
                 key: vec![
                     0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
                     0xCF, 0x4F, 0x3C,
@@ -177,11 +189,108 @@ mod tests {
                     10, 9, 29, 31, 4, 0, 22, 21, 21, 9, 20, 13, 30, 5, 0, 9, 14, 30, 22,
                 ],
             },
+            TestVector {
+                // Sample #4
+                aes: AesType::AES192,
+                key: vec![
+                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
+                    0xCF, 0x4F, 0x3C, 0xEF, 0x43, 0x59, 0xD8, 0xD5, 0x80, 0xAA, 0x4F,
+                ],
+                radix: 10,
+                tweak: vec![],
+                pt: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+                ct: vec![2, 8, 3, 0, 6, 6, 8, 1, 3, 2],
+            },
+            TestVector {
+                // Sample #5
+                aes: AesType::AES192,
+                key: vec![
+                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
+                    0xCF, 0x4F, 0x3C, 0xEF, 0x43, 0x59, 0xD8, 0xD5, 0x80, 0xAA, 0x4F,
+                ],
+                radix: 10,
+                tweak: vec![0x39, 0x38, 0x37, 0x36, 0x35, 0x34, 0x33, 0x32, 0x31, 0x30],
+                pt: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+                ct: vec![2, 4, 9, 6, 6, 5, 5, 5, 4, 9],
+            },
+            TestVector {
+                // Sample #6
+                aes: AesType::AES192,
+                key: vec![
+                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
+                    0xCF, 0x4F, 0x3C, 0xEF, 0x43, 0x59, 0xD8, 0xD5, 0x80, 0xAA, 0x4F,
+                ],
+                radix: 36,
+                tweak: vec![
+                    0x37, 0x37, 0x37, 0x37, 0x70, 0x71, 0x72, 0x73, 0x37, 0x37, 0x37,
+                ],
+                pt: vec![
+                    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+                ],
+                ct: vec![
+                    33, 11, 19, 3, 20, 31, 3, 5, 19, 27, 10, 32, 33, 31, 3, 2, 34, 28, 27,
+                ],
+            },
+            TestVector {
+                // Sample #7
+                aes: AesType::AES256,
+                key: vec![
+                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
+                    0xCF, 0x4F, 0x3C, 0xEF, 0x43, 0x59, 0xD8, 0xD5, 0x80, 0xAA, 0x4F, 0x7F, 0x03,
+                    0x6D, 0x6F, 0x04, 0xFC, 0x6A, 0x94,
+                ],
+                radix: 10,
+                tweak: vec![],
+                pt: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+                ct: vec![6, 6, 5, 7, 6, 6, 7, 0, 0, 9],
+            },
+            TestVector {
+                // Sample #8
+                aes: AesType::AES256,
+                key: vec![
+                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
+                    0xCF, 0x4F, 0x3C, 0xEF, 0x43, 0x59, 0xD8, 0xD5, 0x80, 0xAA, 0x4F, 0x7F, 0x03,
+                    0x6D, 0x6F, 0x04, 0xFC, 0x6A, 0x94,
+                ],
+                radix: 10,
+                tweak: vec![0x39, 0x38, 0x37, 0x36, 0x35, 0x34, 0x33, 0x32, 0x31, 0x30],
+                pt: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+                ct: vec![1, 0, 0, 1, 6, 2, 3, 4, 6, 3],
+            },
+            TestVector {
+                // Sample #9
+                aes: AesType::AES256,
+                key: vec![
+                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
+                    0xCF, 0x4F, 0x3C, 0xEF, 0x43, 0x59, 0xD8, 0xD5, 0x80, 0xAA, 0x4F, 0x7F, 0x03,
+                    0x6D, 0x6F, 0x04, 0xFC, 0x6A, 0x94,
+                ],
+                radix: 36,
+                tweak: vec![
+                    0x37, 0x37, 0x37, 0x37, 0x70, 0x71, 0x72, 0x73, 0x37, 0x37, 0x37,
+                ],
+                pt: vec![
+                    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+                ],
+                ct: vec![
+                    33, 28, 8, 10, 0, 10, 35, 17, 2, 10, 31, 34, 10, 21, 34, 35, 30, 32, 13,
+                ],
+            },
         ];
 
         for tv in test_vectors {
-            let ff = FF1::new(&tv.key, tv.radix);
-            assert_eq!(ff.encrypt(&tv.tweak, &tv.pt[..]), tv.ct);
+            let ct = match tv.aes {
+                AesType::AES128 => {
+                    FF1::<Aes128>::new(&tv.key, tv.radix).encrypt(&tv.tweak, &tv.pt[..])
+                }
+                AesType::AES192 => {
+                    FF1::<Aes192>::new(&tv.key, tv.radix).encrypt(&tv.tweak, &tv.pt[..])
+                }
+                AesType::AES256 => {
+                    FF1::<Aes256>::new(&tv.key, tv.radix).encrypt(&tv.tweak, &tv.pt[..])
+                }
+            };
+            assert_eq!(ct, tv.ct);
         }
     }
 }
