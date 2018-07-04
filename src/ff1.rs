@@ -8,19 +8,18 @@ use num_traits::{
 // radix in [2..2^16]
 type Radix = u16;
 
-fn pow(x: BigUint, e: usize) -> BigUint {
+fn pow(x: &BigUint, e: usize) -> BigUint {
     let mut res = BigUint::one();
     for _ in 0..e {
-        res *= &x;
+        res *= x;
     }
     res
 }
 
-fn num_radix(x: &[Radix], radix: Radix) -> BigUint {
+fn num_radix(x: &[Radix], radix: &BigUint) -> BigUint {
     let mut res = BigUint::zero();
-    let base = BigUint::from(radix);
     for i in x {
-        res *= &base;
+        res *= radix;
         res += BigUint::from(*i);
     }
     res
@@ -38,6 +37,7 @@ fn str_radix(mut x: BigUint, radix: Radix, m: usize) -> Vec<Radix> {
 pub struct FF1<CIPH: BlockCipher> {
     ciph: CIPH,
     radix: Radix,
+    radix_bi: BigUint,
 }
 
 impl<CIPH: BlockCipher> FF1<CIPH> {
@@ -56,7 +56,12 @@ impl<CIPH: BlockCipher> FF1<CIPH> {
 
     pub fn new(key: &[u8], radix: Radix) -> Self {
         let ciph = CIPH::new(GenericArray::from_slice(key));
-        FF1 { ciph, radix }
+        let radix_bi = BigUint::from(radix);
+        FF1 {
+            ciph,
+            radix,
+            radix_bi,
+        }
     }
 
     pub fn encrypt(&self, tweak: &[u8], x: &[Radix]) -> Vec<Radix> {
@@ -95,7 +100,7 @@ impl<CIPH: BlockCipher> FF1<CIPH> {
         for i in 0..10 {
             let mut q = q_base.clone();
             q.write_u8(i).unwrap();
-            let q_bytes = num_radix(&x_b, self.radix).to_bytes_be();
+            let q_bytes = num_radix(&x_b, &self.radix_bi).to_bytes_be();
             for _ in 0..(b - q_bytes.len()) {
                 q.write_u8(0).unwrap();
             }
@@ -115,7 +120,7 @@ impl<CIPH: BlockCipher> FF1<CIPH> {
             let m = if i % 2 == 0 { u } else { v };
 
             // 6vi. Let c = (NUM(A, radix) + y) mod radix^m.
-            let c = (num_radix(&x_a, self.radix) + y) % pow(BigUint::from(self.radix), m);
+            let c = (num_radix(&x_a, &self.radix_bi) + y) % pow(&self.radix_bi, m);
 
             // 6vii. Let C = STR(c, radix).
             let x_c = str_radix(c, self.radix, m);
@@ -168,7 +173,7 @@ impl<CIPH: BlockCipher> FF1<CIPH> {
             let i = 9 - i;
             let mut q = q_base.clone();
             q.write_u8(i).unwrap();
-            let q_bytes = num_radix(&x_a, self.radix).to_bytes_be();
+            let q_bytes = num_radix(&x_a, &self.radix_bi).to_bytes_be();
             for _ in 0..(b - q_bytes.len()) {
                 q.write_u8(0).unwrap();
             }
@@ -188,8 +193,8 @@ impl<CIPH: BlockCipher> FF1<CIPH> {
             let m = if i % 2 == 0 { u } else { v };
 
             // 6vi. Let c = (NUM(B, radix) - y) mod radix^m.
-            let modulus = BigInt::from(pow(BigUint::from(self.radix), m));
-            let mut c = (BigInt::from(num_radix(&x_b, self.radix)) - y) % &modulus;
+            let modulus = BigInt::from(pow(&self.radix_bi, m));
+            let mut c = (BigInt::from(num_radix(&x_b, &self.radix_bi)) - y) % &modulus;
             if c.sign() == Sign::Minus {
                 c += modulus;
             }
