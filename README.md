@@ -1,5 +1,11 @@
 # fpe [![Crates.io](https://img.shields.io/crates/v/fpe.svg)](https://crates.io/crates/fpe) #
 
+This crate contains pure-Rust implementations of format-perserving encryption
+algorithms.
+
+The following algorithms are implemented:
+- FF1 (specified in [NIST Special Publication 800-38G](http://dx.doi.org/10.6028/NIST.SP.800-38G)).
+
 ## License
 
 Licensed under either of
