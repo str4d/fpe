@@ -34,6 +34,25 @@ fn str_radix(mut x: BigUint, radix: Radix, m: usize) -> Vec<Radix> {
     res
 }
 
+fn generate_s<CIPH: BlockCipher>(ciph: &CIPH, r: &[u8], d: usize) -> Vec<u8> {
+    let mut s = Vec::from(r);
+    s.reserve(d);
+    {
+        let mut j = 1;
+        while s.len() < d {
+            let mut block = [j; 16];
+            for k in 0..16 {
+                block[k] ^= r[k];
+            }
+            ciph.encrypt_block(&mut GenericArray::from_mut_slice(&mut block));
+            s.extend_from_slice(&block[..]);
+            j += 1;
+        }
+    }
+    s.truncate(d);
+    s
+}
+
 pub struct FF1<CIPH: BlockCipher> {
     ciph: CIPH,
     radix: Radix,
@@ -110,11 +129,10 @@ impl<CIPH: BlockCipher> FF1<CIPH> {
             let r = self.prf(&[&p[..], &q[..]].concat());
 
             // 6iii. Let S be the first d bytes of R.
-            assert!(d <= 16); // TODO Handle d > 16
-            let s = &r[..d];
+            let s = generate_s(&self.ciph, &r[..], d);
 
             // 6iv. Let y = NUM(S).
-            let y = BigUint::from_bytes_be(s);
+            let y = BigUint::from_bytes_be(&s);
 
             // 6v. If i is even, let m = u; else, let m = v.
             let m = if i % 2 == 0 { u } else { v };
@@ -183,11 +201,10 @@ impl<CIPH: BlockCipher> FF1<CIPH> {
             let r = self.prf(&[&p[..], &q[..]].concat());
 
             // 6iii. Let S be the first d bytes of R.
-            assert!(d <= 16); // TODO Handle d > 16
-            let s = &r[..d];
+            let s = generate_s(&self.ciph, &r[..], d);
 
             // 6iv. Let y = NUM(S).
-            let y = BigInt::from(BigUint::from_bytes_be(s));
+            let y = BigInt::from(BigUint::from_bytes_be(&s));
 
             // 6v. If i is even, let m = u; else, let m = v.
             let m = if i % 2 == 0 { u } else { v };
