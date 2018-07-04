@@ -1,6 +1,6 @@
 use aes::{block_cipher_trait::generic_array::GenericArray, BlockCipher};
 use byteorder::{BigEndian, WriteBytesExt};
-use num_bigint::BigUint;
+use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::{identities::Zero, ToPrimitive};
 
 // radix in [2..2^16]
@@ -115,6 +115,84 @@ impl<CIPH: BlockCipher> FF1<CIPH> {
 
             // 6ix. Let B = C.
             x_b = x_c;
+        }
+
+        // 7. Return A || B.
+        [x_a, x_b].concat()
+    }
+
+    pub fn decrypt(&self, tweak: &[u8], x: &[Radix]) -> Vec<Radix> {
+        let n = x.len();
+        let t = tweak.len();
+
+        // 1. Let u = floor(n / 2); v = n - u
+        let u = n / 2;
+        let v = n - u;
+
+        // 2. Let A = X[1..u]; B = X[u + 1..n].
+        let mut x_a = Vec::from(&x[0..u]);
+        let mut x_b = Vec::from(&x[u..n]);
+
+        // 3. Let b = ceil(ceil(v * log2(radix)) / 8).
+        let b = (v as f64 * (self.radix as f64).log2() / 8f64).ceil() as usize;
+
+        // 4. Let d = 4 * ceil(b / 4) + 4.
+        let d = (4f64 * (b as f64 / 4f64).ceil() + 4f64) as usize;
+
+        // 5. Let P = [1, 2, 1] || [radix] || [10] || [u mod 256] || [n] || [t].
+        let mut p = vec![1, 2, 1];
+        p.write_u24::<BigEndian>(self.radix as u32).unwrap();
+        p.write_u8(10).unwrap();
+        p.write_u8(u as u8).unwrap();
+        p.write_u32::<BigEndian>(n as u32).unwrap();
+        p.write_u32::<BigEndian>(t as u32).unwrap();
+
+        //  6i. Let Q = T || [0]^((-t-b-1) mod 16) || [i] || [NUM(A, radix)].
+        let q_base = {
+            let val = ((((-(t as i32) - (b as i32) - 1) % 16) + 16) % 16) as usize;
+            let mut q = Vec::from(tweak);
+            q.resize(t + val, 0);
+            q
+        };
+        for i in 0..10 {
+            let i = 9 - i;
+            let mut q = q_base.clone();
+            q.write_u8(i).unwrap();
+            let q_bytes = num_radix(&x_a, self.radix).to_bytes_be();
+            for _ in 0..(b - q_bytes.len()) {
+                q.write_u8(0).unwrap();
+            }
+            q.extend(q_bytes);
+
+            // 6ii. Let R = PRF(P || Q).
+            let r = self.prf(&[&p[..], &q[..]].concat());
+
+            // 6iii. Let S be the first d bytes of R.
+            assert!(d <= 16); // TODO Handle d > 16
+            let s = &r[..d];
+
+            // 6iv. Let y = NUM(S).
+            let y = BigInt::from(BigUint::from_bytes_be(s));
+
+            // 6v. If i is even, let m = u; else, let m = v.
+            let m = if i % 2 == 0 { u } else { v };
+
+            // 6vi. Let c = (NUM(B, radix) - y) mod radix^m.
+            let modulus = (self.radix as u64).pow(m as u32);
+            let mut c = (BigInt::from(num_radix(&x_b, self.radix)) - y) % modulus;
+            if c.sign() == Sign::Minus {
+                c += modulus;
+            }
+            let c = c.to_biguint().unwrap();
+
+            // 6vii. Let C = STR(c, radix).
+            let x_c = str_radix(c, self.radix, m);
+
+            // 6viii. Let B = A.
+            x_b = x_a;
+
+            // 6ix. Let A = C.
+            x_a = x_c;
         }
 
         // 7. Return A || B.
@@ -319,18 +397,31 @@ mod tests {
         ];
 
         for tv in test_vectors {
-            let ct = match tv.aes {
+            let (ct, pt) = match tv.aes {
                 AesType::AES128 => {
-                    FF1::<Aes128>::new(&tv.key, tv.radix).encrypt(&tv.tweak, &tv.pt[..])
+                    let ff = FF1::<Aes128>::new(&tv.key, tv.radix);
+                    (
+                        ff.encrypt(&tv.tweak, &tv.pt[..]),
+                        ff.decrypt(&tv.tweak, &tv.ct[..]),
+                    )
                 }
                 AesType::AES192 => {
-                    FF1::<Aes192>::new(&tv.key, tv.radix).encrypt(&tv.tweak, &tv.pt[..])
+                    let ff = FF1::<Aes192>::new(&tv.key, tv.radix);
+                    (
+                        ff.encrypt(&tv.tweak, &tv.pt[..]),
+                        ff.decrypt(&tv.tweak, &tv.ct[..]),
+                    )
                 }
                 AesType::AES256 => {
-                    FF1::<Aes256>::new(&tv.key, tv.radix).encrypt(&tv.tweak, &tv.pt[..])
+                    let ff = FF1::<Aes256>::new(&tv.key, tv.radix);
+                    (
+                        ff.encrypt(&tv.tweak, &tv.pt[..]),
+                        ff.decrypt(&tv.tweak, &tv.ct[..]),
+                    )
                 }
             };
             assert_eq!(ct, tv.ct);
+            assert_eq!(pt, tv.pt);
         }
     }
 }
