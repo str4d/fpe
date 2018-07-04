@@ -1,10 +1,20 @@
 use aes::{block_cipher_trait::generic_array::GenericArray, BlockCipher};
 use byteorder::{BigEndian, WriteBytesExt};
 use num_bigint::{BigInt, BigUint, Sign};
-use num_traits::{identities::Zero, ToPrimitive};
+use num_traits::{
+    identities::{One, Zero}, ToPrimitive,
+};
 
 // radix in [2..2^16]
 type Radix = u16;
+
+fn pow(x: BigUint, e: usize) -> BigUint {
+    let mut res = BigUint::one();
+    for _ in 0..e {
+        res *= &x;
+    }
+    res
+}
 
 fn num_radix(x: &[Radix], radix: Radix) -> BigUint {
     let mut res = BigUint::zero();
@@ -105,7 +115,7 @@ impl<CIPH: BlockCipher> FF1<CIPH> {
             let m = if i % 2 == 0 { u } else { v };
 
             // 6vi. Let c = (NUM(A, radix) + y) mod radix^m.
-            let c = (num_radix(&x_a, self.radix) + y) % (self.radix as u64).pow(m as u32);
+            let c = (num_radix(&x_a, self.radix) + y) % pow(BigUint::from(self.radix), m);
 
             // 6vii. Let C = STR(c, radix).
             let x_c = str_radix(c, self.radix, m);
@@ -178,8 +188,8 @@ impl<CIPH: BlockCipher> FF1<CIPH> {
             let m = if i % 2 == 0 { u } else { v };
 
             // 6vi. Let c = (NUM(B, radix) - y) mod radix^m.
-            let modulus = (self.radix as u64).pow(m as u32);
-            let mut c = (BigInt::from(num_radix(&x_b, self.radix)) - y) % modulus;
+            let modulus = BigInt::from(pow(BigUint::from(self.radix), m));
+            let mut c = (BigInt::from(num_radix(&x_b, self.radix)) - y) % &modulus;
             if c.sign() == Sign::Minus {
                 c += modulus;
             }
