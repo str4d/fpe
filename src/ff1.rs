@@ -213,7 +213,9 @@ impl<CIPH: BlockCipher> FF1<CIPH> {
             let modulus = BigInt::from(pow(&self.radix_bi, m));
             let mut c = (BigInt::from(num_radix(&x_b, &self.radix_bi)) - y) % &modulus;
             if c.sign() == Sign::Minus {
-                c += modulus;
+                // use ((x % m) + m) % m to ensure it is in range
+                c += &modulus;
+                c %= modulus;
             }
             let c = c.to_biguint().unwrap();
 
