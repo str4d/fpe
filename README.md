@@ -1,6 +1,6 @@
 # fpe [![Crates.io](https://img.shields.io/crates/v/fpe.svg)](https://crates.io/crates/fpe) #
 
-This crate contains pure-Rust implementations of format-perserving encryption
+This crate contains pure-Rust implementations of format-preserving encryption
 algorithms.
 
 The following algorithms are implemented:

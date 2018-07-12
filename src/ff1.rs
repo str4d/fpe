@@ -5,7 +5,7 @@ use num_traits::{
     identities::{One, Zero}, ToPrimitive,
 };
 
-// radix in [2..2^16]
+// radix in [2..2^16)
 type Radix = u16;
 
 fn pow(x: &BigUint, e: usize) -> BigUint {
