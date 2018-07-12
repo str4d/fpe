@@ -38,15 +38,18 @@ fn generate_s<CIPH: BlockCipher>(ciph: &CIPH, r: &[u8], d: usize) -> Vec<u8> {
     let mut s = Vec::from(r);
     s.reserve(d);
     {
-        let mut j = 1;
+        let mut j = BigUint::one();
         while s.len() < d {
-            let mut block = [j; 16];
+            let tmp = j.to_bytes_be();
+            assert!(tmp.len() <= 16);
+            let mut block = [0; 16];
+            block[16 - tmp.len()..].copy_from_slice(&tmp);
             for k in 0..16 {
                 block[k] ^= r[k];
             }
             ciph.encrypt_block(&mut GenericArray::from_mut_slice(&mut block));
             s.extend_from_slice(&block[..]);
-            j += 1;
+            j += BigUint::one();
         }
     }
     s.truncate(d);
