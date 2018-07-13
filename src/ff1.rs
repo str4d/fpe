@@ -13,7 +13,7 @@ pub trait NumeralString: Sized {
     fn concat(a: Self, b: Self) -> Self;
 
     fn num_radix(&self, radix: &BigUint) -> BigUint;
-    fn str_radix(x: BigUint, radix: &Self::RadixSize, m: usize) -> Self;
+    fn str_radix(x: BigUint, radix: &BigUint, m: usize) -> Self;
 }
 
 pub trait RadixOps<RadixSize> {
@@ -66,7 +66,7 @@ impl NumeralString for FlexibleNumeralString {
         res
     }
 
-    fn str_radix(mut x: BigUint, radix: &Self::RadixSize, m: usize) -> Self {
+    fn str_radix(mut x: BigUint, radix: &BigUint, m: usize) -> Self {
         let mut res = vec![0; m];
         for i in 0..m {
             res[m - 1 - i] = (&x % radix).to_u16().unwrap();
@@ -213,7 +213,7 @@ where
             let c = (x_a.num_radix(&self.radix_bi) + y) % pow(&self.radix_bi, m);
 
             // 6vii. Let C = STR(c, radix).
-            let x_c = NS::str_radix(c, &self.radix, m);
+            let x_c = NS::str_radix(c, &self.radix_bi, m);
 
             // 6viii. Let A = B.
             x_a = x_b;
@@ -291,7 +291,7 @@ where
             let c = c.to_biguint().unwrap();
 
             // 6vii. Let C = STR(c, radix).
-            let x_c = NS::str_radix(c, &self.radix, m);
+            let x_c = NS::str_radix(c, &self.radix_bi, m);
 
             // 6viii. Let B = A.
             x_b = x_a;
