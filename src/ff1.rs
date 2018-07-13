@@ -6,8 +6,6 @@ use num_traits::{
 };
 
 pub trait NumeralString: Sized {
-    type RadixSize;
-
     fn len(&self) -> usize;
     fn split(&self, u: usize) -> (Self, Self);
     fn concat(a: Self, b: Self) -> Self;
@@ -16,7 +14,7 @@ pub trait NumeralString: Sized {
     fn str_radix(x: BigUint, radix: &BigUint, m: usize) -> Self;
 }
 
-pub trait RadixOps<RadixSize> {
+pub trait RadixOps {
     /// Calculates b = ceil(ceil(v * log2(radix)) / 8).
     fn calculate_b(&self, v: usize) -> usize;
     fn to_biguint(&self) -> BigUint;
@@ -39,8 +37,6 @@ impl From<FlexibleNumeralString> for Vec<u16> {
 }
 
 impl NumeralString for FlexibleNumeralString {
-    type RadixSize = u16;
-
     fn len(&self) -> usize {
         self.0.len()
     }
@@ -75,7 +71,7 @@ impl NumeralString for FlexibleNumeralString {
     }
 }
 
-impl RadixOps<u16> for u16 {
+impl RadixOps for u16 {
     fn calculate_b(&self, v: usize) -> usize {
         (v as f64 * (*self as f64).log2() / 8f64).ceil() as usize
     }
@@ -119,19 +115,13 @@ fn generate_s<CIPH: BlockCipher>(ciph: &CIPH, r: &[u8], d: usize) -> Vec<u8> {
     s
 }
 
-pub struct FF1<CIPH: BlockCipher, NS: NumeralString>
-where
-    NS::RadixSize: RadixOps<NS::RadixSize>,
-{
+pub struct FF1<CIPH: BlockCipher, R: RadixOps> {
     ciph: CIPH,
-    radix: NS::RadixSize,
+    radix: R,
     radix_bi: BigUint,
 }
 
-impl<CIPH: BlockCipher, NS: NumeralString> FF1<CIPH, NS>
-where
-    NS::RadixSize: RadixOps<NS::RadixSize>,
-{
+impl<CIPH: BlockCipher, R: RadixOps> FF1<CIPH, R> {
     fn prf(&self, x: &[u8]) -> [u8; 16] {
         let m = x.len() / 16;
         let mut y = [0u8; 16];
@@ -145,7 +135,7 @@ where
         y
     }
 
-    pub fn new(key: &[u8], radix: NS::RadixSize) -> Self {
+    pub fn new(key: &[u8], radix: R) -> Self {
         let ciph = CIPH::new(GenericArray::from_slice(key));
         let radix_bi = radix.to_biguint();
         FF1 {
@@ -155,7 +145,7 @@ where
         }
     }
 
-    pub fn encrypt(&self, tweak: &[u8], x: &NS) -> NS {
+    pub fn encrypt<NS: NumeralString>(&self, tweak: &[u8], x: &NS) -> NS {
         let n = x.len();
         let t = tweak.len();
 
@@ -225,7 +215,7 @@ where
         NS::concat(x_a, x_b)
     }
 
-    pub fn decrypt(&self, tweak: &[u8], x: &NS) -> NS {
+    pub fn decrypt<NS: NumeralString>(&self, tweak: &[u8], x: &NS) -> NS {
         let n = x.len();
         let t = tweak.len();
 
@@ -533,21 +523,21 @@ mod tests {
         for tv in test_vectors {
             let (ct, pt) = match tv.aes {
                 AesType::AES128 => {
-                    let ff = FF1::<Aes128, FlexibleNumeralString>::new(&tv.key, tv.radix);
+                    let ff = FF1::<Aes128, u16>::new(&tv.key, tv.radix);
                     (
                         ff.encrypt(&tv.tweak, &FlexibleNumeralString::from(tv.pt.clone())),
                         ff.decrypt(&tv.tweak, &FlexibleNumeralString::from(tv.ct.clone())),
                     )
                 }
                 AesType::AES192 => {
-                    let ff = FF1::<Aes192, FlexibleNumeralString>::new(&tv.key, tv.radix);
+                    let ff = FF1::<Aes192, u16>::new(&tv.key, tv.radix);
                     (
                         ff.encrypt(&tv.tweak, &FlexibleNumeralString::from(tv.pt.clone())),
                         ff.decrypt(&tv.tweak, &FlexibleNumeralString::from(tv.ct.clone())),
                     )
                 }
                 AesType::AES256 => {
-                    let ff = FF1::<Aes256, FlexibleNumeralString>::new(&tv.key, tv.radix);
+                    let ff = FF1::<Aes256, u16>::new(&tv.key, tv.radix);
                     (
                         ff.encrypt(&tv.tweak, &FlexibleNumeralString::from(tv.pt.clone())),
                         ff.decrypt(&tv.tweak, &FlexibleNumeralString::from(tv.ct.clone())),
