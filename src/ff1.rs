@@ -24,7 +24,6 @@ pub trait RadixOps<RadixSize> {
 }
 
 /// A numeral string that supports radixes in [2..2^16).
-/// It uses floating-point arithmetic where necessary.
 pub struct FlexibleNumeralString(Vec<u16>);
 
 impl From<Vec<u16>> for FlexibleNumeralString {
@@ -171,7 +170,7 @@ where
         let b = self.radix.calculate_b(v);
 
         // 4. Let d = 4 * ceil(b / 4) + 4.
-        let d = (4f64 * (b as f64 / 4f64).ceil() + 4f64) as usize;
+        let d = 4 * ((b + 3) / 4) + 4;
 
         // 5. Let P = [1, 2, 1] || [radix] || [10] || [u mod 256] || [n] || [t].
         let mut p = vec![1, 2, 1];
@@ -241,7 +240,7 @@ where
         let b = self.radix.calculate_b(v);
 
         // 4. Let d = 4 * ceil(b / 4) + 4.
-        let d = (4f64 * (b as f64 / 4f64).ceil() + 4f64) as usize;
+        let d = 4 * ((b + 3) / 4) + 4;
 
         // 5. Let P = [1, 2, 1] || [radix] || [10] || [u mod 256] || [n] || [t].
         let mut p = vec![1, 2, 1];
