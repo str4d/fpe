@@ -98,6 +98,54 @@ impl RadixOps for u16 {
     }
 }
 
+/// A radix 2^i for i in [1..16). It does not use floating-point arithmetic.
+#[derive(Debug, PartialEq)]
+pub struct PowerTwoRadix {
+    radix: u16,
+    log_radix: u8,
+}
+
+impl PowerTwoRadix {
+    pub fn from(radix: u16) -> Result<Self, ()> {
+        let mut tmp = radix;
+        let mut log_radix = 0;
+        let mut found = false;
+        for i in 0..16 {
+            if tmp & 1 != 0 {
+                // Only a single bit should be set
+                if found {
+                    return Err(());
+                }
+                log_radix = i;
+                found = true;
+            }
+            tmp >>= 1;
+        }
+        match log_radix {
+            0 => Err(()),
+            _ => Ok(PowerTwoRadix { radix, log_radix }),
+        }
+    }
+}
+
+impl RadixOps for PowerTwoRadix {
+    fn check_in_range(&self, n: u32) -> bool {
+        n >> self.log_radix == 0
+    }
+
+    fn calculate_b(&self, v: usize) -> usize {
+        ((v * self.log_radix as usize) + 7) / 8
+    }
+
+    fn to_biguint(&self) -> BigUint {
+        BigUint::from(self.radix)
+    }
+
+    fn to_u32(&self) -> u32 {
+        self.radix as u32
+    }
+}
+
 fn pow(x: &BigUint, e: usize) -> BigUint {
     let mut res = BigUint::one();
     for _ in 0..e {
@@ -325,7 +373,7 @@ impl<CIPH: BlockCipher, R: RadixOps> FF1<CIPH, R> {
 mod tests {
     use aes::{Aes128, Aes192, Aes256};
 
-    use super::{FF1, FlexibleNumeralString, NumeralString, RadixOps};
+    use super::{FF1, FlexibleNumeralString, NumeralString, PowerTwoRadix, RadixOps};
 
     #[test]
     fn val_in_range() {
@@ -346,6 +394,43 @@ mod tests {
 
         let ns = FlexibleNumeralString::from(vec![0, 5, 10]);
         assert!(!ns.is_valid(&radix));
+    }
+
+    #[test]
+    fn power_two_radix() {
+        assert_eq!(PowerTwoRadix::from(1), Err(()));
+        assert_eq!(
+            PowerTwoRadix::from(2),
+            Ok(PowerTwoRadix {
+                radix: 2,
+                log_radix: 1,
+            })
+        );
+        assert_eq!(PowerTwoRadix::from(3), Err(()));
+        assert_eq!(
+            PowerTwoRadix::from(4),
+            Ok(PowerTwoRadix {
+                radix: 4,
+                log_radix: 2,
+            })
+        );
+        assert_eq!(PowerTwoRadix::from(5), Err(()));
+        assert_eq!(PowerTwoRadix::from(6), Err(()));
+        assert_eq!(PowerTwoRadix::from(7), Err(()));
+        assert_eq!(
+            PowerTwoRadix::from(8),
+            Ok(PowerTwoRadix {
+                radix: 8,
+                log_radix: 3,
+            })
+        );
+        assert_eq!(
+            PowerTwoRadix::from(32768),
+            Ok(PowerTwoRadix {
+                radix: 32768,
+                log_radix: 15,
+            })
+        );
     }
 
     #[test]
@@ -591,6 +676,73 @@ mod tests {
                         ff.decrypt(&tv.tweak, &FlexibleNumeralString::from(tv.ct.clone())),
                     )
                 }
+            };
+            assert_eq!(Vec::from(ct.unwrap()), tv.ct);
+            assert_eq!(Vec::from(pt.unwrap()), tv.pt);
+        }
+    }
+
+    #[test]
+    fn test_vectors_radix_power_2() {
+        struct TestVector {
+            key: Vec<u8>,
+            radix: u16,
+            tweak: Vec<u8>,
+            pt: Vec<u16>,
+            ct: Vec<u16>,
+        };
+
+        let test_vectors = vec![
+            // Zcash test vectors
+            TestVector {
+                key: vec![
+                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
+                    0xCF, 0x4F, 0x3C, 0xEF, 0x43, 0x59, 0xD8, 0xD5, 0x80, 0xAA, 0x4F, 0x7F, 0x03,
+                    0x6D, 0x6F, 0x04, 0xFC, 0x6A, 0x94,
+                ],
+                radix: 2,
+                tweak: vec![],
+                pt: vec![0; 88],
+                ct: vec![
+                    0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1,
+                    1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0,
+                    0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1,
+                    0, 0, 1, 1, 0, 0, 1, 1, 1, 1,
+                ],
+            },
+            TestVector {
+                key: vec![
+                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
+                    0xCF, 0x4F, 0x3C, 0xEF, 0x43, 0x59, 0xD8, 0xD5, 0x80, 0xAA, 0x4F, 0x7F, 0x03,
+                    0x6D, 0x6F, 0x04, 0xFC, 0x6A, 0x94,
+                ],
+                radix: 2,
+                tweak: vec![],
+                pt: vec![
+                    0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1,
+                    1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0,
+                    0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1,
+                    0, 0, 1, 1, 0, 0, 1, 1, 1, 1,
+                ],
+                ct: vec![
+                    1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0,
+                    0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1, 0, 1,
+                    0, 1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1,
+                    1, 1, 1, 1, 0, 1, 1, 0, 0, 0,
+                ],
+            },
+        ];
+
+        for tv in test_vectors {
+            let (ct, pt) = {
+                let ff = FF1::<Aes256, PowerTwoRadix>::new(
+                    &tv.key,
+                    PowerTwoRadix::from(tv.radix).unwrap(),
+                );
+                (
+                    ff.encrypt(&tv.tweak, &FlexibleNumeralString::from(tv.pt.clone())),
+                    ff.decrypt(&tv.tweak, &FlexibleNumeralString::from(tv.ct.clone())),
+                )
             };
             assert_eq!(Vec::from(ct.unwrap()), tv.ct);
             assert_eq!(Vec::from(pt.unwrap()), tv.pt);
