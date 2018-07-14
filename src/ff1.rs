@@ -5,7 +5,9 @@ use num_traits::{
     identities::{One, Zero}, ToPrimitive,
 };
 
-pub trait NumeralString: Sized {
+pub trait NumeralString<R: RadixOps>: Sized {
+    fn is_valid(&self, radix: &R) -> bool;
+
     fn len(&self) -> usize;
     fn split(&self, u: usize) -> (Self, Self);
     fn concat(a: Self, b: Self) -> Self;
@@ -15,6 +17,7 @@ pub trait NumeralString: Sized {
 }
 
 pub trait RadixOps {
+    fn check_in_range(&self, n: u32) -> bool;
     /// Calculates b = ceil(ceil(v * log2(radix)) / 8).
     fn calculate_b(&self, v: usize) -> usize;
     fn to_biguint(&self) -> BigUint;
@@ -36,7 +39,13 @@ impl From<FlexibleNumeralString> for Vec<u16> {
     }
 }
 
-impl NumeralString for FlexibleNumeralString {
+impl<R: RadixOps> NumeralString<R> for FlexibleNumeralString {
+    fn is_valid(&self, radix: &R) -> bool {
+        self.0
+            .iter()
+            .fold(true, |acc, n| acc && radix.check_in_range(*n as u32))
+    }
+
     fn len(&self) -> usize {
         self.0.len()
     }
@@ -72,6 +81,10 @@ impl NumeralString for FlexibleNumeralString {
 }
 
 impl RadixOps for u16 {
+    fn check_in_range(&self, n: u32) -> bool {
+        n % *self as u32 == n
+    }
+
     fn calculate_b(&self, v: usize) -> usize {
         (v as f64 * (*self as f64).log2() / 8f64).ceil() as usize
     }
@@ -145,7 +158,14 @@ impl<CIPH: BlockCipher, R: RadixOps> FF1<CIPH, R> {
         }
     }
 
-    pub fn encrypt<NS: NumeralString>(&self, tweak: &[u8], x: &NS) -> NS {
+    /// Encrypts the given numeral string.
+    ///
+    /// Returns an error if the numeral string is not in the required radix.
+    pub fn encrypt<NS: NumeralString<R>>(&self, tweak: &[u8], x: &NS) -> Result<NS, ()> {
+        if !x.is_valid(&self.radix) {
+            return Err(());
+        }
+
         let n = x.len();
         let t = tweak.len();
 
@@ -212,10 +232,17 @@ impl<CIPH: BlockCipher, R: RadixOps> FF1<CIPH, R> {
         }
 
         // 7. Return A || B.
-        NS::concat(x_a, x_b)
+        Ok(NS::concat(x_a, x_b))
     }
 
-    pub fn decrypt<NS: NumeralString>(&self, tweak: &[u8], x: &NS) -> NS {
+    /// Decrypts the given numeral string.
+    ///
+    /// Returns an error if the numeral string is not in the required radix.
+    pub fn decrypt<NS: NumeralString<R>>(&self, tweak: &[u8], x: &NS) -> Result<NS, ()> {
+        if !x.is_valid(&self.radix) {
+            return Err(());
+        }
+
         let n = x.len();
         let t = tweak.len();
 
@@ -290,7 +317,7 @@ impl<CIPH: BlockCipher, R: RadixOps> FF1<CIPH, R> {
         }
 
         // 7. Return A || B.
-        NS::concat(x_a, x_b)
+        Ok(NS::concat(x_a, x_b))
     }
 }
 
@@ -298,7 +325,28 @@ impl<CIPH: BlockCipher, R: RadixOps> FF1<CIPH, R> {
 mod tests {
     use aes::{Aes128, Aes192, Aes256};
 
-    use super::{FF1, FlexibleNumeralString};
+    use super::{FF1, FlexibleNumeralString, NumeralString, RadixOps};
+
+    #[test]
+    fn val_in_range() {
+        let radix = 10;
+        for i in 0..10 {
+            assert_eq!(radix.check_in_range(i), true);
+        }
+        for i in 10..20 {
+            assert_eq!(radix.check_in_range(i), false);
+        }
+    }
+
+    #[test]
+    fn ns_is_valid() {
+        let radix = 10;
+        let ns = FlexibleNumeralString::from(vec![0, 5, 9]);
+        assert!(ns.is_valid(&radix));
+
+        let ns = FlexibleNumeralString::from(vec![0, 5, 10]);
+        assert!(!ns.is_valid(&radix));
+    }
 
     #[test]
     fn test_vectors() {
@@ -544,8 +592,8 @@ mod tests {
                     )
                 }
             };
-            assert_eq!(Vec::from(ct), tv.ct);
-            assert_eq!(Vec::from(pt), tv.pt);
+            assert_eq!(Vec::from(ct.unwrap()), tv.ct);
+            assert_eq!(Vec::from(pt.unwrap()), tv.pt);
         }
     }
 }
