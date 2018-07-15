@@ -146,6 +146,95 @@ impl RadixOps for PowerTwoRadix {
     }
 }
 
+/// A numeral string with radix 2.
+pub struct BinaryNumeralString(Vec<u8>);
+
+impl BinaryNumeralString {
+    /// Creates a BinaryNumeralString from a byte slice, with each byte
+    /// interpreted in little-endian bit order.
+    pub fn from_bytes_le(s: &[u8]) -> Self {
+        let mut data = Vec::with_capacity(s.len() * 8);
+        for n in s {
+            let mut tmp = *n;
+            for _ in 0..8 {
+                data.push(tmp & 1);
+                tmp >>= 1;
+            }
+        }
+        BinaryNumeralString(data)
+    }
+
+    /// Returns a Vec<u8>, with each byte written from the BinaryNumeralString
+    /// in little-endian bit order.
+    pub fn to_bytes_le(&self) -> Vec<u8> {
+        let mut data = Vec::with_capacity((self.0.len() + 7) / 8);
+        let mut acc = 0;
+        let mut shift = 0;
+        for n in &self.0 {
+            acc += n << shift;
+            shift += 1;
+            if shift == 8 {
+                data.push(acc);
+                acc = 0;
+                shift = 0;
+            }
+        }
+        data
+    }
+}
+
+impl NumeralString<PowerTwoRadix> for BinaryNumeralString {
+    fn is_valid(&self, radix: &PowerTwoRadix) -> bool {
+        self.0
+            .iter()
+            .fold(true, |acc, n| acc && radix.check_in_range(*n as u32))
+    }
+
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    fn split(&self, u: usize) -> (Self, Self) {
+        let mut front = self.0.clone();
+        let back = front.split_off(u);
+        (BinaryNumeralString(front), BinaryNumeralString(back))
+    }
+
+    fn concat(mut a: Self, mut b: Self) -> Self {
+        a.0.append(&mut b.0);
+        a
+    }
+
+    fn num_radix(&self, radix: &BigUint) -> BigUint {
+        let zero = BigUint::zero();
+        let one = BigUint::one();
+        // Check that radix == 2
+        assert!((radix & &one).is_zero());
+        assert_eq!(radix >> 1, one);
+        let mut res = zero;
+        for i in &self.0 {
+            res <<= 1;
+            if *i != 0 {
+                res += &one;
+            }
+        }
+        res
+    }
+
+    fn str_radix(mut x: BigUint, radix: &BigUint, m: usize) -> Self {
+        let one = BigUint::one();
+        // Check that radix == 2
+        assert!((radix & &one).is_zero());
+        assert_eq!(radix >> 1, one);
+        let mut res = vec![0; m];
+        for i in 0..m {
+            res[m - 1 - i] = if (&x & &one).is_zero() { 0 } else { 1 };
+            x >>= 1;
+        }
+        BinaryNumeralString(res)
+    }
+}
+
 fn pow(x: &BigUint, e: usize) -> BigUint {
     let mut res = BigUint::one();
     for _ in 0..e {
@@ -373,7 +462,9 @@ impl<CIPH: BlockCipher, R: RadixOps> FF1<CIPH, R> {
 mod tests {
     use aes::{Aes128, Aes192, Aes256};
 
-    use super::{FF1, FlexibleNumeralString, NumeralString, PowerTwoRadix, RadixOps};
+    use super::{
+        BinaryNumeralString, FF1, FlexibleNumeralString, NumeralString, PowerTwoRadix, RadixOps,
+    };
 
     #[test]
     fn val_in_range() {
@@ -746,6 +837,99 @@ mod tests {
             };
             assert_eq!(Vec::from(ct.unwrap()), tv.ct);
             assert_eq!(Vec::from(pt.unwrap()), tv.pt);
+        }
+    }
+
+    #[test]
+    fn test_vectors_binary() {
+        struct TestVector {
+            key: Vec<u8>,
+            radix: u16,
+            tweak: Vec<u8>,
+            pt: Vec<u8>,
+            ct: Vec<u8>,
+            bpt: Vec<u8>,
+            bct: Vec<u8>,
+        };
+
+        let test_vectors = vec![
+            // Zcash test vectors
+            TestVector {
+                key: vec![
+                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
+                    0xCF, 0x4F, 0x3C, 0xEF, 0x43, 0x59, 0xD8, 0xD5, 0x80, 0xAA, 0x4F, 0x7F, 0x03,
+                    0x6D, 0x6F, 0x04, 0xFC, 0x6A, 0x94,
+                ],
+                radix: 2,
+                tweak: vec![],
+                pt: vec![0; 88],
+                ct: vec![
+                    0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1,
+                    1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0,
+                    0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1,
+                    0, 0, 1, 1, 0, 0, 1, 1, 1, 1,
+                ],
+                bpt: vec![
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                ],
+                bct: vec![
+                    0x90, 0xac, 0xee, 0x3f, 0x83, 0xcd, 0xe7, 0xae, 0x56, 0x22, 0xf3,
+                ],
+            },
+            TestVector {
+                key: vec![
+                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
+                    0xCF, 0x4F, 0x3C, 0xEF, 0x43, 0x59, 0xD8, 0xD5, 0x80, 0xAA, 0x4F, 0x7F, 0x03,
+                    0x6D, 0x6F, 0x04, 0xFC, 0x6A, 0x94,
+                ],
+                radix: 2,
+                tweak: vec![],
+                pt: vec![
+                    0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1,
+                    1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0,
+                    0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1,
+                    0, 0, 1, 1, 0, 0, 1, 1, 1, 1,
+                ],
+                ct: vec![
+                    1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0,
+                    0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1, 0, 1,
+                    0, 1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1,
+                    1, 1, 1, 1, 0, 1, 1, 0, 0, 0,
+                ],
+                bpt: vec![
+                    0x90, 0xac, 0xee, 0x3f, 0x83, 0xcd, 0xe7, 0xae, 0x56, 0x22, 0xf3,
+                ],
+                bct: vec![
+                    0x5b, 0x8b, 0xf1, 0x20, 0xf3, 0x9b, 0xab, 0x85, 0x27, 0xea, 0x1b,
+                ],
+            },
+        ];
+
+        for tv in test_vectors {
+            let (ct, pt, bct, bpt) = {
+                let ff = FF1::<Aes256, PowerTwoRadix>::new(
+                    &tv.key,
+                    PowerTwoRadix::from(tv.radix).unwrap(),
+                );
+                (
+                    ff.encrypt(&tv.tweak, &BinaryNumeralString(tv.pt.clone()))
+                        .unwrap(),
+                    ff.decrypt(&tv.tweak, &BinaryNumeralString(tv.ct.clone()))
+                        .unwrap(),
+                    ff.encrypt(&tv.tweak, &BinaryNumeralString::from_bytes_le(&tv.bpt))
+                        .unwrap(),
+                    ff.decrypt(&tv.tweak, &BinaryNumeralString::from_bytes_le(&tv.bct))
+                        .unwrap(),
+                )
+            };
+            assert_eq!(pt.to_bytes_le(), tv.bpt);
+            assert_eq!(ct.to_bytes_le(), tv.bct);
+            assert_eq!(bpt.to_bytes_le(), tv.bpt);
+            assert_eq!(bct.to_bytes_le(), tv.bct);
+            assert_eq!(pt.0, tv.pt);
+            assert_eq!(ct.0, tv.ct);
+            assert_eq!(bpt.0, tv.pt);
+            assert_eq!(bct.0, tv.ct);
         }
     }
 }
