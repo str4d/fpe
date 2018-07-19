@@ -167,7 +167,9 @@ impl BinaryNumeralString {
     /// Returns a Vec<u8>, with each byte written from the BinaryNumeralString
     /// in little-endian bit order.
     pub fn to_bytes_le(&self) -> Vec<u8> {
-        let mut data = Vec::with_capacity((self.0.len() + 7) / 8);
+        // We should always have a multiple of eight bits
+        assert_eq!((self.0.len() + 7) / 8, self.0.len() / 8);
+        let mut data = Vec::with_capacity(self.0.len() / 8);
         let mut acc = 0;
         let mut shift = 0;
         for n in &self.0 {
