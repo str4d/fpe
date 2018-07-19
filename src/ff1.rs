@@ -1,6 +1,7 @@
 use aes::{block_cipher_trait::generic_array::GenericArray, BlockCipher};
 use byteorder::{BigEndian, WriteBytesExt};
 use num_bigint::{BigInt, BigUint, Sign};
+use num_integer::Integer;
 use num_traits::{
     identities::{One, Zero}, ToPrimitive,
 };
@@ -230,7 +231,9 @@ impl NumeralString<PowerTwoRadix> for BinaryNumeralString {
         assert_eq!(radix >> 1, one);
         let mut res = vec![0; m];
         for i in 0..m {
-            res[m - 1 - i] = if (&x & &one).is_zero() { 0 } else { 1 };
+            if x.is_odd() {
+                res[m - 1 - i] = 1;
+            }
             x >>= 1;
         }
         BinaryNumeralString(res)
