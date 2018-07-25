@@ -6,8 +6,72 @@ use num_traits::{
     identities::{One, Zero}, ToPrimitive,
 };
 
-pub trait NumeralString<R: RadixOps>: Sized {
-    fn is_valid(&self, radix: &R) -> bool;
+#[derive(Debug, PartialEq)]
+enum Radix {
+    /// A radix in [2..2^16]. It uses floating-point arithmetic.
+    Any(u32),
+    /// A radix 2^i for i in [1..16]. It does not use floating-point arithmetic.
+    PowerTwo { radix: u32, log_radix: u8 },
+}
+
+impl Radix {
+    pub fn from(radix: u32) -> Result<Self, ()> {
+        // radix must be in range [2..2^16]
+        if radix < 2 || radix > (1 << 16) {
+            return Err(());
+        }
+
+        let mut tmp = radix;
+        let mut log_radix = None;
+        let mut found_bit = false;
+
+        // 2^16 is 17 bits
+        for i in 0..17 {
+            if tmp & 1 != 0 {
+                // Only a single bit can be set for PowerTwo
+                if found_bit {
+                    log_radix = None;
+                } else {
+                    log_radix = Some(i);
+                    found_bit = true;
+                }
+            }
+            tmp >>= 1;
+        }
+        Ok(match log_radix {
+            Some(log_radix) => Radix::PowerTwo { radix, log_radix },
+            None => Radix::Any(radix),
+        })
+    }
+
+    /// Calculates b = ceil(ceil(v * log2(radix)) / 8).
+    fn calculate_b(&self, v: usize) -> usize {
+        match self {
+            &Radix::Any(r) => (v as f64 * (r as f64).log2() / 8f64).ceil() as usize,
+            &Radix::PowerTwo {
+                radix: _,
+                log_radix,
+            } => ((v * log_radix as usize) + 7) / 8,
+        }
+    }
+
+    fn to_biguint(&self) -> BigUint {
+        BigUint::from(self.to_u32())
+    }
+
+    fn to_u32(&self) -> u32 {
+        match self {
+            &Radix::Any(r) => r,
+            &Radix::PowerTwo {
+                radix,
+                log_radix: _,
+            } => radix,
+        }
+    }
+}
+
+pub trait NumeralString: Sized {
+    fn is_valid(&self, radix: u32) -> bool;
 
     fn len(&self) -> usize;
     fn split(&self, u: usize) -> (Self, Self);
@@ -15,14 +79,6 @@ pub trait NumeralString<R: RadixOps>: Sized {
 
     fn num_radix(&self, radix: &BigUint) -> BigUint;
     fn str_radix(x: BigUint, radix: &BigUint, m: usize) -> Self;
-}
-
-pub trait RadixOps {
-    fn check_in_range(&self, n: u32) -> bool;
-    /// Calculates b = ceil(ceil(v * log2(radix)) / 8).
-    fn calculate_b(&self, v: usize) -> usize;
-    fn to_biguint(&self) -> BigUint;
-    fn to_u32(&self) -> u32;
 }
 
 /// A numeral string that supports radixes in [2..2^16).
@@ -40,11 +96,11 @@ impl From<FlexibleNumeralString> for Vec<u16> {
     }
 }
 
-impl<R: RadixOps> NumeralString<R> for FlexibleNumeralString {
-    fn is_valid(&self, radix: &R) -> bool {
+impl NumeralString for FlexibleNumeralString {
+    fn is_valid(&self, radix: u32) -> bool {
         self.0
             .iter()
-            .fold(true, |acc, n| acc && radix.check_in_range(*n as u32))
+            .fold(true, |acc, n| acc && ((*n as u32) < radix))
     }
 
     fn len(&self) -> usize {
@@ -78,72 +134,6 @@ impl<R: RadixOps> NumeralString<R> for FlexibleNumeralString {
             x = x / radix;
         }
         FlexibleNumeralString(res)
-    }
-}
-
-impl RadixOps for u16 {
-    fn check_in_range(&self, n: u32) -> bool {
-        n % *self as u32 == n
-    }
-
-    fn calculate_b(&self, v: usize) -> usize {
-        (v as f64 * (*self as f64).log2() / 8f64).ceil() as usize
-    }
-
-    fn to_biguint(&self) -> BigUint {
-        BigUint::from(*self)
-    }
-
-    fn to_u32(&self) -> u32 {
-        *self as u32
-    }
-}
-
-/// A radix 2^i for i in [1..16). It does not use floating-point arithmetic.
-#[derive(Debug, PartialEq)]
-pub struct PowerTwoRadix {
-    radix: u16,
-    log_radix: u8,
-}
-
-impl PowerTwoRadix {
-    pub fn from(radix: u16) -> Result<Self, ()> {
-        let mut tmp = radix;
-        let mut log_radix = 0;
-        let mut found = false;
-        for i in 0..16 {
-            if tmp & 1 != 0 {
-                // Only a single bit should be set
-                if found {
-                    return Err(());
-                }
-                log_radix = i;
-                found = true;
-            }
-            tmp >>= 1;
-        }
-        match log_radix {
-            0 => Err(()),
-            _ => Ok(PowerTwoRadix { radix, log_radix }),
-        }
-    }
-}
-
-impl RadixOps for PowerTwoRadix {
-    fn check_in_range(&self, n: u32) -> bool {
-        n >> self.log_radix == 0
-    }
-
-    fn calculate_b(&self, v: usize) -> usize {
-        ((v * self.log_radix as usize) + 7) / 8
-    }
-
-    fn to_biguint(&self) -> BigUint {
-        BigUint::from(self.radix)
-    }
-
-    fn to_u32(&self) -> u32 {
-        self.radix as u32
     }
 }
 
@@ -186,11 +176,11 @@ impl BinaryNumeralString {
     }
 }
 
-impl NumeralString<PowerTwoRadix> for BinaryNumeralString {
-    fn is_valid(&self, radix: &PowerTwoRadix) -> bool {
+impl NumeralString for BinaryNumeralString {
+    fn is_valid(&self, radix: u32) -> bool {
         self.0
             .iter()
-            .fold(true, |acc, n| acc && radix.check_in_range(*n as u32))
+            .fold(true, |acc, n| acc && ((*n as u32) < radix))
     }
 
     fn len(&self) -> usize {
@@ -270,13 +260,13 @@ fn generate_s<CIPH: BlockCipher>(ciph: &CIPH, r: &[u8], d: usize) -> Vec<u8> {
     s
 }
 
-pub struct FF1<CIPH: BlockCipher, R: RadixOps> {
+pub struct FF1<CIPH: BlockCipher> {
     ciph: CIPH,
-    radix: R,
+    radix: Radix,
     radix_bi: BigUint,
 }
 
-impl<CIPH: BlockCipher, R: RadixOps> FF1<CIPH, R> {
+impl<CIPH: BlockCipher> FF1<CIPH> {
     fn prf(&self, x: &[u8]) -> [u8; 16] {
         let m = x.len() / 16;
         let mut y = [0u8; 16];
@@ -290,21 +280,22 @@ impl<CIPH: BlockCipher, R: RadixOps> FF1<CIPH, R> {
         y
     }
 
-    pub fn new(key: &[u8], radix: R) -> Self {
+    pub fn new(key: &[u8], radix: u32) -> Result<Self, ()> {
         let ciph = CIPH::new(GenericArray::from_slice(key));
+        let radix = Radix::from(radix)?;
         let radix_bi = radix.to_biguint();
-        FF1 {
+        Ok(FF1 {
             ciph,
             radix,
             radix_bi,
-        }
+        })
     }
 
     /// Encrypts the given numeral string.
     ///
     /// Returns an error if the numeral string is not in the required radix.
-    pub fn encrypt<NS: NumeralString<R>>(&self, tweak: &[u8], x: &NS) -> Result<NS, ()> {
-        if !x.is_valid(&self.radix) {
+    pub fn encrypt<NS: NumeralString>(&self, tweak: &[u8], x: &NS) -> Result<NS, ()> {
+        if !x.is_valid(self.radix.to_u32()) {
             return Err(());
         }
 
@@ -380,8 +371,8 @@ impl<CIPH: BlockCipher, R: RadixOps> FF1<CIPH, R> {
     /// Decrypts the given numeral string.
     ///
     /// Returns an error if the numeral string is not in the required radix.
-    pub fn decrypt<NS: NumeralString<R>>(&self, tweak: &[u8], x: &NS) -> Result<NS, ()> {
-        if !x.is_valid(&self.radix) {
+    pub fn decrypt<NS: NumeralString>(&self, tweak: &[u8], x: &NS) -> Result<NS, ()> {
+        if !x.is_valid(self.radix.to_u32()) {
             return Err(());
         }
 
@@ -467,66 +458,62 @@ impl<CIPH: BlockCipher, R: RadixOps> FF1<CIPH, R> {
 mod tests {
     use aes::{Aes128, Aes192, Aes256};
 
-    use super::{
-        BinaryNumeralString, FF1, FlexibleNumeralString, NumeralString, PowerTwoRadix, RadixOps,
-    };
-
-    #[test]
-    fn val_in_range() {
-        let radix = 10;
-        for i in 0..10 {
-            assert_eq!(radix.check_in_range(i), true);
-        }
-        for i in 10..20 {
-            assert_eq!(radix.check_in_range(i), false);
-        }
-    }
+    use super::{BinaryNumeralString, FF1, FlexibleNumeralString, NumeralString, Radix};
 
     #[test]
     fn ns_is_valid() {
         let radix = 10;
         let ns = FlexibleNumeralString::from(vec![0, 5, 9]);
-        assert!(ns.is_valid(&radix));
+        assert!(ns.is_valid(radix));
 
         let ns = FlexibleNumeralString::from(vec![0, 5, 10]);
-        assert!(!ns.is_valid(&radix));
+        assert!(!ns.is_valid(radix));
     }
 
     #[test]
-    fn power_two_radix() {
-        assert_eq!(PowerTwoRadix::from(1), Err(()));
+    fn radix() {
+        assert_eq!(Radix::from(1), Err(()));
         assert_eq!(
-            PowerTwoRadix::from(2),
-            Ok(PowerTwoRadix {
+            Radix::from(2),
+            Ok(Radix::PowerTwo {
                 radix: 2,
                 log_radix: 1,
             })
         );
-        assert_eq!(PowerTwoRadix::from(3), Err(()));
+        assert_eq!(Radix::from(3), Ok(Radix::Any(3)));
         assert_eq!(
-            PowerTwoRadix::from(4),
-            Ok(PowerTwoRadix {
+            Radix::from(4),
+            Ok(Radix::PowerTwo {
                 radix: 4,
                 log_radix: 2,
             })
         );
-        assert_eq!(PowerTwoRadix::from(5), Err(()));
-        assert_eq!(PowerTwoRadix::from(6), Err(()));
-        assert_eq!(PowerTwoRadix::from(7), Err(()));
+        assert_eq!(Radix::from(5), Ok(Radix::Any(5)));
+        assert_eq!(Radix::from(6), Ok(Radix::Any(6)));
+        assert_eq!(Radix::from(7), Ok(Radix::Any(7)));
         assert_eq!(
-            PowerTwoRadix::from(8),
-            Ok(PowerTwoRadix {
+            Radix::from(8),
+            Ok(Radix::PowerTwo {
                 radix: 8,
                 log_radix: 3,
             })
         );
         assert_eq!(
-            PowerTwoRadix::from(32768),
-            Ok(PowerTwoRadix {
+            Radix::from(32768),
+            Ok(Radix::PowerTwo {
                 radix: 32768,
                 log_radix: 15,
             })
         );
+        assert_eq!(Radix::from(65535), Ok(Radix::Any(65535)));
+        assert_eq!(
+            Radix::from(65536),
+            Ok(Radix::PowerTwo {
+                radix: 65536,
+                log_radix: 16,
+            })
+        );
+        assert_eq!(Radix::from(65537), Err(()));
     }
 
     #[test]
@@ -540,7 +527,7 @@ mod tests {
         struct TestVector {
             aes: AesType,
             key: Vec<u8>,
-            radix: u16,
+            radix: u32,
             tweak: Vec<u8>,
             pt: Vec<u16>,
             ct: Vec<u16>,
@@ -752,93 +739,26 @@ mod tests {
         for tv in test_vectors {
             let (ct, pt) = match tv.aes {
                 AesType::AES128 => {
-                    let ff = FF1::<Aes128, u16>::new(&tv.key, tv.radix);
+                    let ff = FF1::<Aes128>::new(&tv.key, tv.radix).unwrap();
                     (
                         ff.encrypt(&tv.tweak, &FlexibleNumeralString::from(tv.pt.clone())),
                         ff.decrypt(&tv.tweak, &FlexibleNumeralString::from(tv.ct.clone())),
                     )
                 }
                 AesType::AES192 => {
-                    let ff = FF1::<Aes192, u16>::new(&tv.key, tv.radix);
+                    let ff = FF1::<Aes192>::new(&tv.key, tv.radix).unwrap();
                     (
                         ff.encrypt(&tv.tweak, &FlexibleNumeralString::from(tv.pt.clone())),
                         ff.decrypt(&tv.tweak, &FlexibleNumeralString::from(tv.ct.clone())),
                     )
                 }
                 AesType::AES256 => {
-                    let ff = FF1::<Aes256, u16>::new(&tv.key, tv.radix);
+                    let ff = FF1::<Aes256>::new(&tv.key, tv.radix).unwrap();
                     (
                         ff.encrypt(&tv.tweak, &FlexibleNumeralString::from(tv.pt.clone())),
                         ff.decrypt(&tv.tweak, &FlexibleNumeralString::from(tv.ct.clone())),
                     )
                 }
-            };
-            assert_eq!(Vec::from(ct.unwrap()), tv.ct);
-            assert_eq!(Vec::from(pt.unwrap()), tv.pt);
-        }
-    }
-
-    #[test]
-    fn test_vectors_radix_power_2() {
-        struct TestVector {
-            key: Vec<u8>,
-            radix: u16,
-            tweak: Vec<u8>,
-            pt: Vec<u16>,
-            ct: Vec<u16>,
-        };
-
-        let test_vectors = vec![
-            // Zcash test vectors
-            TestVector {
-                key: vec![
-                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
-                    0xCF, 0x4F, 0x3C, 0xEF, 0x43, 0x59, 0xD8, 0xD5, 0x80, 0xAA, 0x4F, 0x7F, 0x03,
-                    0x6D, 0x6F, 0x04, 0xFC, 0x6A, 0x94,
-                ],
-                radix: 2,
-                tweak: vec![],
-                pt: vec![0; 88],
-                ct: vec![
-                    0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1,
-                    1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0,
-                    0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1,
-                    0, 0, 1, 1, 0, 0, 1, 1, 1, 1,
-                ],
-            },
-            TestVector {
-                key: vec![
-                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
-                    0xCF, 0x4F, 0x3C, 0xEF, 0x43, 0x59, 0xD8, 0xD5, 0x80, 0xAA, 0x4F, 0x7F, 0x03,
-                    0x6D, 0x6F, 0x04, 0xFC, 0x6A, 0x94,
-                ],
-                radix: 2,
-                tweak: vec![],
-                pt: vec![
-                    0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1,
-                    1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0,
-                    0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1,
-                    0, 0, 1, 1, 0, 0, 1, 1, 1, 1,
-                ],
-                ct: vec![
-                    1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0,
-                    0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1, 0, 1,
-                    0, 1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1,
-                    1, 1, 1, 1, 0, 1, 1, 0, 0, 0,
-                ],
-            },
-        ];
-
-        for tv in test_vectors {
-            let (ct, pt) = {
-                let ff = FF1::<Aes256, PowerTwoRadix>::new(
-                    &tv.key,
-                    PowerTwoRadix::from(tv.radix).unwrap(),
-                );
-                (
-                    ff.encrypt(&tv.tweak, &FlexibleNumeralString::from(tv.pt.clone())),
-                    ff.decrypt(&tv.tweak, &FlexibleNumeralString::from(tv.ct.clone())),
-                )
             };
             assert_eq!(Vec::from(ct.unwrap()), tv.ct);
             assert_eq!(Vec::from(pt.unwrap()), tv.pt);
@@ -849,7 +769,7 @@ mod tests {
     fn test_vectors_binary() {
         struct TestVector {
             key: Vec<u8>,
-            radix: u16,
+            radix: u32,
             tweak: Vec<u8>,
             pt: Vec<u8>,
             ct: Vec<u8>,
@@ -912,10 +832,7 @@ mod tests {
 
         for tv in test_vectors {
             let (ct, pt, bct, bpt) = {
-                let ff = FF1::<Aes256, PowerTwoRadix>::new(
-                    &tv.key,
-                    PowerTwoRadix::from(tv.radix).unwrap(),
-                );
+                let ff = FF1::<Aes256>::new(&tv.key, tv.radix).unwrap();
                 (
                     ff.encrypt(&tv.tweak, &BinaryNumeralString(tv.pt.clone()))
                         .unwrap(),
