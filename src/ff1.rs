@@ -1,7 +1,7 @@
 //! A Rust implementation of the FF1 algorithm, specified in
 //! [NIST Special Publication 800-38G](http://dx.doi.org/10.6028/NIST.SP.800-38G).
 
-use aes::{block_cipher_trait::generic_array::GenericArray, BlockCipher};
+use aes::block_cipher_trait::{generic_array::GenericArray, BlockCipher};
 use byteorder::{BigEndian, WriteBytesExt};
 use num_bigint::{BigInt, BigUint, Sign};
 use num_integer::Integer;
