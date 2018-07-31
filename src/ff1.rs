@@ -1,4 +1,7 @@
-use aes::{block_cipher_trait::generic_array::GenericArray, BlockCipher};
+//! A Rust implementation of the FF1 algorithm, specified in
+//! [NIST Special Publication 800-38G](http://dx.doi.org/10.6028/NIST.SP.800-38G).
+
+use aes::block_cipher_trait::{generic_array::GenericArray, BlockCipher};
 use byteorder::{BigEndian, WriteBytesExt};
 use num_bigint::{BigInt, BigUint, Sign};
 use num_integer::Integer;
@@ -70,14 +73,28 @@ impl Radix {
     }
 }
 
+/// For a given base, a finite, ordered sequence of numerals for the base.
 pub trait NumeralString: Sized {
+    /// Returns whether this numeral string is valid for the base radix.
     fn is_valid(&self, radix: u32) -> bool;
 
+    /// Returns the number of numerals in this numeral string.
     fn len(&self) -> usize;
+
+    /// Splits this numeral string into two sections X[..u] and X[u..].
     fn split(&self, u: usize) -> (Self, Self);
+
+    /// Concatenates two numeral strings.
     fn concat(a: Self, b: Self) -> Self;
 
+    /// The number that this numeral string represents in the base radix
+    /// when the numerals are valued in decreasing order of significance
+    /// (big-endian order).
     fn num_radix(&self, radix: &BigUint) -> BigUint;
+
+    /// Given a non-negative integer x less than radix<sup>m</sup>, returns
+    /// the representation of x as a string of m numerals in base radix,
+    /// in decreasing order of significance (big-endian order).
     fn str_radix(x: BigUint, radix: &BigUint, m: usize) -> Self;
 }
 
@@ -260,6 +277,7 @@ fn generate_s<CIPH: BlockCipher>(ciph: &CIPH, r: &[u8], d: usize) -> Vec<u8> {
     s
 }
 
+/// A struct for performing FF1 encryption and decryption operations.
 pub struct FF1<CIPH: BlockCipher> {
     ciph: CIPH,
     radix: Radix,
@@ -280,6 +298,9 @@ impl<CIPH: BlockCipher> FF1<CIPH> {
         y
     }
 
+    /// Creates a new FF1 object for the given key and radix.
+    ///
+    /// Returns an error if the given radix is not in [2..2^16].
     pub fn new(key: &[u8], radix: u32) -> Result<Self, ()> {
         let ciph = CIPH::new(GenericArray::from_slice(key));
         let radix = Radix::from(radix)?;
@@ -695,6 +716,7 @@ mod tests {
                 ],
             },
             // Zcash test vectors
+            // From https://github.com/zcash-hackworks/zcash-test-vectors/blob/master/ff1.py
             TestVector {
                 aes: AesType::AES256,
                 key: vec![
@@ -732,6 +754,66 @@ mod tests {
                     0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1, 0, 1,
                     0, 1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1,
                     1, 1, 1, 1, 0, 1, 1, 0, 0, 0,
+                ],
+            },
+            TestVector {
+                aes: AesType::AES256,
+                key: vec![
+                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
+                    0xCF, 0x4F, 0x3C, 0xEF, 0x43, 0x59, 0xD8, 0xD5, 0x80, 0xAA, 0x4F, 0x7F, 0x03,
+                    0x6D, 0x6F, 0x04, 0xFC, 0x6A, 0x94,
+                ],
+                radix: 2,
+                tweak: vec![],
+                pt: vec![
+                    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
+                    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
+                    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
+                    0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
+                ],
+                ct: vec![
+                    0, 0, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1,
+                    1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0,
+                    0, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0,
+                    1, 1, 0, 0, 1, 0, 0, 1, 1, 0,
+                ],
+            },
+            TestVector {
+                aes: AesType::AES256,
+                key: vec![
+                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
+                    0xCF, 0x4F, 0x3C, 0xEF, 0x43, 0x59, 0xD8, 0xD5, 0x80, 0xAA, 0x4F, 0x7F, 0x03,
+                    0x6D, 0x6F, 0x04, 0xFC, 0x6A, 0x94,
+                ],
+                radix: 2,
+                tweak: vec![
+                    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+                    22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41,
+                    42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61,
+                    62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81,
+                    82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100,
+                    101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116,
+                    117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132,
+                    133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148,
+                    149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164,
+                    165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180,
+                    181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196,
+                    197, 198, 199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212,
+                    213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 227, 228,
+                    229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244,
+                    245, 246, 247, 248, 249, 250, 251, 252, 253, 254,
+                ],
+                pt: vec![
+                    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
+                    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
+                    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
+                    0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
+                ],
+                ct: vec![
+                    0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1, 0, 1,
+                    1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1,
+                    1, 0, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1,
+                    1, 0, 1, 0, 1, 0, 0, 0, 1, 1,
                 ],
             },
         ];
