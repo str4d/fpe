@@ -1,3 +1,6 @@
+//! A Rust implementation of the FF1 algorithm, specified in
+//! [NIST Special Publication 800-38G](http://dx.doi.org/10.6028/NIST.SP.800-38G).
+
 use aes::{block_cipher_trait::generic_array::GenericArray, BlockCipher};
 use byteorder::{BigEndian, WriteBytesExt};
 use num_bigint::{BigInt, BigUint, Sign};
@@ -70,14 +73,28 @@ impl Radix {
     }
 }
 
+/// For a given base, a finite, ordered sequence of numerals for the base.
 pub trait NumeralString: Sized {
+    /// Returns whether this numeral string is valid for the base radix.
     fn is_valid(&self, radix: u32) -> bool;
 
+    /// Returns the number of numerals in this numeral string.
     fn len(&self) -> usize;
+
+    /// Splits this numeral string into two sections X[..u] and X[u..].
     fn split(&self, u: usize) -> (Self, Self);
+
+    /// Concatenates two numeral strings.
     fn concat(a: Self, b: Self) -> Self;
 
+    /// The number that this numeral string represents in the base radix
+    /// when the numerals are valued in decreasing order of significance
+    /// (big-endian order).
     fn num_radix(&self, radix: &BigUint) -> BigUint;
+
+    /// Given a non-negative integer x less than radix<sup>m</sup>, returns
+    /// the representation of x as a string of m numerals in base radix,
+    /// in decreasing order of significance (big-endian order).
     fn str_radix(x: BigUint, radix: &BigUint, m: usize) -> Self;
 }
 
@@ -260,6 +277,7 @@ fn generate_s<CIPH: BlockCipher>(ciph: &CIPH, r: &[u8], d: usize) -> Vec<u8> {
     s
 }
 
+/// A struct for performing FF1 encryption and decryption operations.
 pub struct FF1<CIPH: BlockCipher> {
     ciph: CIPH,
     radix: Radix,
@@ -280,6 +298,9 @@ impl<CIPH: BlockCipher> FF1<CIPH> {
         y
     }
 
+    /// Creates a new FF1 object for the given key and radix.
+    ///
+    /// Returns an error if the given radix is not in [2..2^16].
     pub fn new(key: &[u8], radix: u32) -> Result<Self, ()> {
         let ciph = CIPH::new(GenericArray::from_slice(key));
         let radix = Radix::from(radix)?;
