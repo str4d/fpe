@@ -6,7 +6,8 @@ use byteorder::{BigEndian, WriteBytesExt};
 use num_bigint::{BigInt, BigUint, Sign};
 use num_integer::Integer;
 use num_traits::{
-    identities::{One, Zero}, ToPrimitive,
+    identities::{One, Zero},
+    ToPrimitive,
 };
 
 #[derive(Debug, PartialEq)]
@@ -479,7 +480,7 @@ impl<CIPH: BlockCipher> FF1<CIPH> {
 mod tests {
     use aes::{Aes128, Aes192, Aes256};
 
-    use super::{BinaryNumeralString, FF1, FlexibleNumeralString, NumeralString, Radix};
+    use super::{BinaryNumeralString, FlexibleNumeralString, NumeralString, Radix, FF1};
 
     #[test]
     fn ns_is_valid() {
