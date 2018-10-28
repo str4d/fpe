@@ -250,18 +250,25 @@ fn generate_s<CIPH: BlockCipher>(ciph: &CIPH, r: &[u8], d: usize) -> Vec<u8> {
     let mut s = Vec::from(r);
     s.reserve(d);
     {
-        let mut j = BigUint::one();
+        let mut j = [0u8; 16];
         while s.len() < d {
-            let tmp = j.to_bytes_be();
-            assert!(tmp.len() <= 16);
+            // Increment j
+            for k in 0..16 {
+                let offset = 16 - k - 1;
+                j[offset] = j[offset].wrapping_add(1);
+                if j[offset] != 0 {
+                    assert!(k < 15);
+                    break;
+                }
+            }
+
             let mut block = [0; 16];
-            block[16 - tmp.len()..].copy_from_slice(&tmp);
+            block.copy_from_slice(&j);
             for k in 0..16 {
                 block[k] ^= r[k];
             }
             ciph.encrypt_block(&mut GenericArray::from_mut_slice(&mut block));
             s.extend_from_slice(&block[..]);
-            j += BigUint::one();
         }
     }
     s.truncate(d);
