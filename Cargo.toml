@@ -3,7 +3,7 @@ name = "fpe"
 version = "0.1.0"
 authors = ["Jack Grigg <str4d@i2pmail.org>"]
 license = "MIT/Apache-2.0"
-
+edition = "2018"
 description = "Format-preserving encryption"
 documentation = "https://docs.rs/fpe/"
 homepage = "https://github.com/str4d/fpe"
