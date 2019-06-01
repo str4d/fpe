@@ -56,10 +56,6 @@ impl Radix {
         }
     }
 
-    fn to_biguint(&self) -> BigUint {
-        BigUint::from(self.to_u32())
-    }
-
     fn to_u32(&self) -> u32 {
         match *self {
             Radix::Any(r) => r,
@@ -68,8 +64,29 @@ impl Radix {
     }
 }
 
+/// An integer.
+pub trait Numeral {
+    /// Type used for byte representations.
+    type Bytes: AsRef<[u8]>;
+
+    /// Returns the integer interpreted from the given bytes in big-endian order.
+    fn from_bytes(s: &[u8]) -> Self;
+
+    /// Returns the big-endian byte representation of this integer.
+    fn to_bytes(&self, b: usize) -> Self::Bytes;
+
+    /// Compute (self + other) mod radix^m
+    fn add_mod_exp(self, other: Self, radix: u32, m: usize) -> Self;
+
+    /// Compute (self - other) mod radix^m
+    fn sub_mod_exp(self, other: Self, radix: u32, m: usize) -> Self;
+}
+
 /// For a given base, a finite, ordered sequence of numerals for the base.
 pub trait NumeralString: Sized {
+    /// The type used for numeric operations.
+    type Num: Numeral;
+
     /// Returns whether this numeral string is valid for the base radix.
     fn is_valid(&self, radix: u32) -> bool;
 
@@ -85,12 +102,45 @@ pub trait NumeralString: Sized {
     /// The number that this numeral string represents in the base radix
     /// when the numerals are valued in decreasing order of significance
     /// (big-endian order).
-    fn num_radix(&self, radix: &BigUint) -> BigUint;
+    fn num_radix(&self, radix: u32) -> Self::Num;
 
     /// Given a non-negative integer x less than radix<sup>m</sup>, returns
     /// the representation of x as a string of m numerals in base radix,
     /// in decreasing order of significance (big-endian order).
-    fn str_radix(x: BigUint, radix: &BigUint, m: usize) -> Self;
+    fn str_radix(x: Self::Num, radix: u32, m: usize) -> Self;
+}
+
+impl Numeral for BigUint {
+    type Bytes = Vec<u8>;
+
+    fn from_bytes(s: &[u8]) -> Self {
+        BigUint::from_bytes_be(s)
+    }
+
+    fn to_bytes(&self, b: usize) -> Vec<u8> {
+        let mut ret = Vec::with_capacity(b);
+        let bytes = self.to_bytes_be();
+        for _ in 0..(b - bytes.len()) {
+            ret.write_u8(0).unwrap();
+        }
+        ret.extend(bytes);
+        ret
+    }
+
+    fn add_mod_exp(self, other: Self, radix: u32, m: usize) -> Self {
+        (self + other) % pow(radix, m)
+    }
+
+    fn sub_mod_exp(self, other: Self, radix: u32, m: usize) -> Self {
+        let modulus = BigInt::from(pow(radix, m));
+        let mut c = (BigInt::from(self) - BigInt::from(other)) % &modulus;
+        if c.sign() == Sign::Minus {
+            // use ((x % m) + m) % m to ensure it is in range
+            c += &modulus;
+            c %= modulus;
+        }
+        c.to_biguint().unwrap()
+    }
 }
 
 /// A numeral string that supports radixes in [2..2^16).
@@ -109,6 +159,8 @@ impl From<FlexibleNumeralString> for Vec<u16> {
 }
 
 impl NumeralString for FlexibleNumeralString {
+    type Num = BigUint;
+
     fn is_valid(&self, radix: u32) -> bool {
         self.0.iter().all(|n| (u32::from(*n) < radix))
     }
@@ -128,7 +180,7 @@ impl NumeralString for FlexibleNumeralString {
         a
     }
 
-    fn num_radix(&self, radix: &BigUint) -> BigUint {
+    fn num_radix(&self, radix: u32) -> BigUint {
         let mut res = BigUint::zero();
         for i in &self.0 {
             res *= radix;
@@ -137,7 +189,7 @@ impl NumeralString for FlexibleNumeralString {
         res
     }
 
-    fn str_radix(mut x: BigUint, radix: &BigUint, m: usize) -> Self {
+    fn str_radix(mut x: BigUint, radix: u32, m: usize) -> Self {
         let mut res = vec![0; m];
         for i in 0..m {
             res[m - 1 - i] = (&x % radix).to_u16().unwrap();
@@ -187,6 +239,8 @@ impl BinaryNumeralString {
 }
 
 impl NumeralString for BinaryNumeralString {
+    type Num = BigUint;
+
     fn is_valid(&self, radix: u32) -> bool {
         self.0.iter().all(|n| (u32::from(*n) < radix))
     }
@@ -206,12 +260,11 @@ impl NumeralString for BinaryNumeralString {
         a
     }
 
-    fn num_radix(&self, radix: &BigUint) -> BigUint {
+    fn num_radix(&self, radix: u32) -> BigUint {
         let zero = BigUint::zero();
         let one = BigUint::one();
         // Check that radix == 2
-        assert!((radix & &one).is_zero());
-        assert_eq!(radix >> 1, one);
+        assert_eq!(radix, 2);
         let mut res = zero;
         for i in &self.0 {
             res <<= 1;
@@ -222,11 +275,9 @@ impl NumeralString for BinaryNumeralString {
         res
     }
 
-    fn str_radix(mut x: BigUint, radix: &BigUint, m: usize) -> Self {
-        let one = BigUint::one();
+    fn str_radix(mut x: BigUint, radix: u32, m: usize) -> Self {
         // Check that radix == 2
-        assert!((radix & &one).is_zero());
-        assert_eq!(radix >> 1, one);
+        assert_eq!(radix, 2);
         let mut res = vec![0; m];
         for i in 0..m {
             if x.is_odd() {
@@ -238,7 +289,7 @@ impl NumeralString for BinaryNumeralString {
     }
 }
 
-fn pow(x: &BigUint, e: usize) -> BigUint {
+fn pow(x: u32, e: usize) -> BigUint {
     let mut res = BigUint::one();
     for _ in 0..e {
         res *= x;
@@ -269,7 +320,6 @@ fn generate_s<CIPH: BlockCipher>(ciph: &CIPH, r: &[u8], d: usize) -> Vec<u8> {
 pub struct FF1<CIPH: BlockCipher> {
     ciph: CIPH,
     radix: Radix,
-    radix_bi: BigUint,
 }
 
 impl<CIPH: NewBlockCipher + BlockCipher> FF1<CIPH> {
@@ -292,12 +342,7 @@ impl<CIPH: NewBlockCipher + BlockCipher> FF1<CIPH> {
     pub fn new(key: &[u8], radix: u32) -> Result<Self, ()> {
         let ciph = CIPH::new(GenericArray::from_slice(key));
         let radix = Radix::from(radix)?;
-        let radix_bi = radix.to_biguint();
-        Ok(FF1 {
-            ciph,
-            radix,
-            radix_bi,
-        })
+        Ok(FF1 { ciph, radix })
     }
 
     /// Encrypts the given numeral string.
@@ -342,11 +387,7 @@ impl<CIPH: NewBlockCipher + BlockCipher> FF1<CIPH> {
         for i in 0..10 {
             let mut q = q_base.clone();
             q.write_u8(i).unwrap();
-            let q_bytes = x_b.num_radix(&self.radix_bi).to_bytes_be();
-            for _ in 0..(b - q_bytes.len()) {
-                q.write_u8(0).unwrap();
-            }
-            q.extend(q_bytes);
+            q.extend(x_b.num_radix(self.radix.to_u32()).to_bytes(b).as_ref());
 
             // 6ii. Let R = PRF(P || Q).
             let r = self.prf(&[&p[..], &q[..]].concat());
@@ -355,16 +396,18 @@ impl<CIPH: NewBlockCipher + BlockCipher> FF1<CIPH> {
             let s = generate_s(&self.ciph, &r[..], d);
 
             // 6iv. Let y = NUM(S).
-            let y = BigUint::from_bytes_be(&s);
+            let y = NS::Num::from_bytes(&s);
 
             // 6v. If i is even, let m = u; else, let m = v.
             let m = if i % 2 == 0 { u } else { v };
 
             // 6vi. Let c = (NUM(A, radix) + y) mod radix^m.
-            let c = (x_a.num_radix(&self.radix_bi) + y) % pow(&self.radix_bi, m);
+            let c = x_a
+                .num_radix(self.radix.to_u32())
+                .add_mod_exp(y, self.radix.to_u32(), m);
 
             // 6vii. Let C = STR(c, radix).
-            let x_c = NS::str_radix(c, &self.radix_bi, m);
+            let x_c = NS::str_radix(c, self.radix.to_u32(), m);
 
             // 6viii. Let A = B.
             x_a = x_b;
@@ -420,11 +463,7 @@ impl<CIPH: NewBlockCipher + BlockCipher> FF1<CIPH> {
             let i = 9 - i;
             let mut q = q_base.clone();
             q.write_u8(i).unwrap();
-            let q_bytes = x_a.num_radix(&self.radix_bi).to_bytes_be();
-            for _ in 0..(b - q_bytes.len()) {
-                q.write_u8(0).unwrap();
-            }
-            q.extend(q_bytes);
+            q.extend(x_a.num_radix(self.radix.to_u32()).to_bytes(b).as_ref());
 
             // 6ii. Let R = PRF(P || Q).
             let r = self.prf(&[&p[..], &q[..]].concat());
@@ -433,23 +472,18 @@ impl<CIPH: NewBlockCipher + BlockCipher> FF1<CIPH> {
             let s = generate_s(&self.ciph, &r[..], d);
 
             // 6iv. Let y = NUM(S).
-            let y = BigInt::from(BigUint::from_bytes_be(&s));
+            let y = NS::Num::from_bytes(&s);
 
             // 6v. If i is even, let m = u; else, let m = v.
             let m = if i % 2 == 0 { u } else { v };
 
             // 6vi. Let c = (NUM(B, radix) - y) mod radix^m.
-            let modulus = BigInt::from(pow(&self.radix_bi, m));
-            let mut c = (BigInt::from(x_b.num_radix(&self.radix_bi)) - y) % &modulus;
-            if c.sign() == Sign::Minus {
-                // use ((x % m) + m) % m to ensure it is in range
-                c += &modulus;
-                c %= modulus;
-            }
-            let c = c.to_biguint().unwrap();
+            let c = x_b
+                .num_radix(self.radix.to_u32())
+                .sub_mod_exp(y, self.radix.to_u32(), m);
 
             // 6vii. Let C = STR(c, radix).
-            let x_c = NS::str_radix(c, &self.radix_bi, m);
+            let x_c = NS::str_radix(c, self.radix.to_u32(), m);
 
             // 6viii. Let B = A.
             x_b = x_a;
