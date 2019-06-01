@@ -2,7 +2,6 @@
 //! [NIST Special Publication 800-38G](http://dx.doi.org/10.6028/NIST.SP.800-38G).
 
 use aes::block_cipher::{generic_array::GenericArray, BlockCipher, NewBlockCipher};
-use byteorder::{BigEndian, WriteBytesExt};
 use num_bigint::{BigInt, BigUint, Sign};
 use num_integer::Integer;
 use num_traits::{
@@ -121,7 +120,7 @@ impl Numeral for BigUint {
         let mut ret = Vec::with_capacity(b);
         let bytes = self.to_bytes_be();
         for _ in 0..(b - bytes.len()) {
-            ret.write_u8(0).unwrap();
+            ret.push(0);
         }
         ret.extend(bytes);
         ret
@@ -370,12 +369,10 @@ impl<CIPH: NewBlockCipher + BlockCipher> FF1<CIPH> {
         let d = 4 * ((b + 3) / 4) + 4;
 
         // 5. Let P = [1, 2, 1] || [radix] || [10] || [u mod 256] || [n] || [t].
-        let mut p = vec![1, 2, 1];
-        p.write_u24::<BigEndian>(self.radix.to_u32()).unwrap();
-        p.write_u8(10).unwrap();
-        p.write_u8(u as u8).unwrap();
-        p.write_u32::<BigEndian>(n as u32).unwrap();
-        p.write_u32::<BigEndian>(t as u32).unwrap();
+        let mut p = [1, 2, 1, 0, 0, 0, 10, u as u8, 0, 0, 0, 0, 0, 0, 0, 0];
+        p[3..6].copy_from_slice(&self.radix.to_u32().to_be_bytes()[1..]);
+        p[8..12].copy_from_slice(&(n as u32).to_be_bytes());
+        p[12..16].copy_from_slice(&(t as u32).to_be_bytes());
 
         //  6i. Let Q = T || [0]^((-t-b-1) mod 16) || [i] || [NUM(B, radix)].
         let q_base = {
@@ -386,7 +383,7 @@ impl<CIPH: NewBlockCipher + BlockCipher> FF1<CIPH> {
         };
         for i in 0..10 {
             let mut q = q_base.clone();
-            q.write_u8(i).unwrap();
+            q.push(i);
             q.extend(x_b.num_radix(self.radix.to_u32()).to_bytes(b).as_ref());
 
             // 6ii. Let R = PRF(P || Q).
@@ -445,12 +442,10 @@ impl<CIPH: NewBlockCipher + BlockCipher> FF1<CIPH> {
         let d = 4 * ((b + 3) / 4) + 4;
 
         // 5. Let P = [1, 2, 1] || [radix] || [10] || [u mod 256] || [n] || [t].
-        let mut p = vec![1, 2, 1];
-        p.write_u24::<BigEndian>(self.radix.to_u32()).unwrap();
-        p.write_u8(10).unwrap();
-        p.write_u8(u as u8).unwrap();
-        p.write_u32::<BigEndian>(n as u32).unwrap();
-        p.write_u32::<BigEndian>(t as u32).unwrap();
+        let mut p = [1, 2, 1, 0, 0, 0, 10, u as u8, 0, 0, 0, 0, 0, 0, 0, 0];
+        p[3..6].copy_from_slice(&self.radix.to_u32().to_be_bytes()[1..]);
+        p[8..12].copy_from_slice(&(n as u32).to_be_bytes());
+        p[12..16].copy_from_slice(&(t as u32).to_be_bytes());
 
         //  6i. Let Q = T || [0]^((-t-b-1) mod 16) || [i] || [NUM(A, radix)].
         let q_base = {
@@ -462,7 +457,7 @@ impl<CIPH: NewBlockCipher + BlockCipher> FF1<CIPH> {
         for i in 0..10 {
             let i = 9 - i;
             let mut q = q_base.clone();
-            q.write_u8(i).unwrap();
+            q.push(i);
             q.extend(x_a.num_radix(self.radix.to_u32()).to_bytes(b).as_ref());
 
             // 6ii. Let R = PRF(P || Q).
