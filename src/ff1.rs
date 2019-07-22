@@ -6,7 +6,8 @@ use byteorder::{BigEndian, WriteBytesExt};
 use num_bigint::{BigInt, BigUint, Sign};
 use num_integer::Integer;
 use num_traits::{
-    identities::{One, Zero}, ToPrimitive,
+    identities::{One, Zero},
+    ToPrimitive,
 };
 
 #[derive(Debug, PartialEq)]
@@ -49,12 +50,9 @@ impl Radix {
 
     /// Calculates b = ceil(ceil(v * log2(radix)) / 8).
     fn calculate_b(&self, v: usize) -> usize {
-        match self {
-            &Radix::Any(r) => (v as f64 * (r as f64).log2() / 8f64).ceil() as usize,
-            &Radix::PowerTwo {
-                radix: _,
-                log_radix,
-            } => ((v * log_radix as usize) + 7) / 8,
+        match *self {
+            Radix::Any(r) => (v as f64 * f64::from(r).log2() / 8f64).ceil() as usize,
+            Radix::PowerTwo { log_radix, .. } => ((v * log_radix as usize) + 7) / 8,
         }
     }
 
@@ -63,12 +61,9 @@ impl Radix {
     }
 
     fn to_u32(&self) -> u32 {
-        match self {
-            &Radix::Any(r) => r,
-            &Radix::PowerTwo {
-                radix,
-                log_radix: _,
-            } => radix,
+        match *self {
+            Radix::Any(r) => r,
+            Radix::PowerTwo { radix, .. } => radix,
         }
     }
 }
@@ -115,9 +110,7 @@ impl From<FlexibleNumeralString> for Vec<u16> {
 
 impl NumeralString for FlexibleNumeralString {
     fn is_valid(&self, radix: u32) -> bool {
-        self.0
-            .iter()
-            .fold(true, |acc, n| acc && ((*n as u32) < radix))
+        self.0.iter().all(|n| (u32::from(*n) < radix))
     }
 
     fn len(&self) -> usize {
@@ -148,7 +141,7 @@ impl NumeralString for FlexibleNumeralString {
         let mut res = vec![0; m];
         for i in 0..m {
             res[m - 1 - i] = (&x % radix).to_u16().unwrap();
-            x = x / radix;
+            x /= radix;
         }
         FlexibleNumeralString(res)
     }
@@ -195,9 +188,7 @@ impl BinaryNumeralString {
 
 impl NumeralString for BinaryNumeralString {
     fn is_valid(&self, radix: u32) -> bool {
-        self.0
-            .iter()
-            .fold(true, |acc, n| acc && ((*n as u32) < radix))
+        self.0.iter().all(|n| (u32::from(*n) < radix))
     }
 
     fn len(&self) -> usize {
@@ -259,18 +250,15 @@ fn generate_s<CIPH: BlockCipher>(ciph: &CIPH, r: &[u8], d: usize) -> Vec<u8> {
     let mut s = Vec::from(r);
     s.reserve(d);
     {
-        let mut j = BigUint::one();
+        let mut j = 0u128;
         while s.len() < d {
-            let tmp = j.to_bytes_be();
-            assert!(tmp.len() <= 16);
-            let mut block = [0; 16];
-            block[16 - tmp.len()..].copy_from_slice(&tmp);
+            j += 1;
+            let mut block = j.to_be_bytes();
             for k in 0..16 {
                 block[k] ^= r[k];
             }
             ciph.encrypt_block(&mut GenericArray::from_mut_slice(&mut block));
             s.extend_from_slice(&block[..]);
-            j += BigUint::one();
         }
     }
     s.truncate(d);
@@ -479,7 +467,7 @@ impl<CIPH: BlockCipher> FF1<CIPH> {
 mod tests {
     use aes::{Aes128, Aes192, Aes256};
 
-    use super::{BinaryNumeralString, FF1, FlexibleNumeralString, NumeralString, Radix};
+    use super::{BinaryNumeralString, FlexibleNumeralString, NumeralString, Radix, FF1};
 
     #[test]
     fn ns_is_valid() {

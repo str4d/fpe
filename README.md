@@ -6,6 +6,8 @@ algorithms.
 The following algorithms are implemented:
 - FF1 (specified in [NIST Special Publication 800-38G](http://dx.doi.org/10.6028/NIST.SP.800-38G)).
 
+This crate requires Rust version 1.32 or greater.
+
 ## License
 
 Licensed under either of
