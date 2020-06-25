@@ -1,7 +1,7 @@
 //! A Rust implementation of the FF1 algorithm, specified in
 //! [NIST Special Publication 800-38G](http://dx.doi.org/10.6028/NIST.SP.800-38G).
 
-use aes::block_cipher_trait::{generic_array::GenericArray, BlockCipher};
+use aes::block_cipher::{generic_array::GenericArray, BlockCipher, NewBlockCipher};
 use byteorder::{BigEndian, WriteBytesExt};
 use num_bigint::{BigInt, BigUint, Sign};
 use num_integer::Integer;
@@ -272,7 +272,7 @@ pub struct FF1<CIPH: BlockCipher> {
     radix_bi: BigUint,
 }
 
-impl<CIPH: BlockCipher> FF1<CIPH> {
+impl<CIPH: NewBlockCipher + BlockCipher> FF1<CIPH> {
     fn prf(&self, x: &[u8]) -> [u8; 16] {
         let m = x.len() / 16;
         let mut y = [0u8; 16];
