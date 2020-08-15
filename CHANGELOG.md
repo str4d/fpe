@@ -7,7 +7,9 @@ and this library adheres to Rust's notion of
 
 ## [Unreleased]
 ### Added
-- `fpe::ff1::{InvalidRadix, NumeralStringError}`
+- `fpe::ff1`:
+  - `InvalidRadix, NumeralStringError`
+  - `Operations`
 
 ### Changed
 - MSRV is now 1.56.0.
@@ -22,6 +24,14 @@ and this library adheres to Rust's notion of
     data that is less than 16 MiB).
   - Refactored `NumeralString` trait:
     - Renamed `NumeralString::len` to `NumeralString::numeral_count`.
+    - Removed `NumeralString::{Num, num_radix, str_radix}`.
+    - Added `NumeralString::Ops`.
+    - `NumeralString::split` now returns `(Self::Ops, Self::Ops)` instead of
+      `(Self, Self)`.
+    - `NumeralString::concat` now takes `Self::Ops` arguments instead of `Self`.
+
+### Removed
+- `fpe::ff1::Numeral`
 
 ## [0.5.1] - 2021-10-27
 ### Fixed

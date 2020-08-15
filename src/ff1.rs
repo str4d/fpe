@@ -127,28 +127,30 @@ impl Radix {
     }
 }
 
-/// An integer.
-pub trait Numeral {
+/// Type representing FF1 operations that can be performed on a sub-section of a
+/// [`NumeralString`].
+pub trait Operations: Sized {
     /// Type used for byte representations.
     type Bytes: AsRef<[u8]>;
 
-    /// Returns the integer interpreted from the given bytes in big-endian order.
-    fn from_bytes(s: impl Iterator<Item = u8>) -> Self;
+    /// Encodes the number that this numeral string represents in the base
+    /// radix as a byte string, by valuing the numerals in decreasing order
+    /// of significance (big-endian order).
+    fn to_be_bytes(&self, radix: u32, b: usize) -> Self::Bytes;
 
-    /// Returns the big-endian byte representation of this integer.
-    fn to_bytes(&self, b: usize) -> Self::Bytes;
+    /// Compute (self + other) mod radix^m, where other is big-endian.
+    fn add_mod_exp(self, other: impl Iterator<Item = u8>, radix: u32, m: usize) -> Self;
 
-    /// Compute (self + other) mod radix^m
-    fn add_mod_exp(self, other: Self, radix: u32, m: usize) -> Self;
-
-    /// Compute (self - other) mod radix^m
-    fn sub_mod_exp(self, other: Self, radix: u32, m: usize) -> Self;
+    /// Compute (self - other) mod radix^m, where other is big-endian.
+    fn sub_mod_exp(self, other: impl Iterator<Item = u8>, radix: u32, m: usize) -> Self;
 }
 
 /// For a given base, a finite, ordered sequence of numerals for the base.
 pub trait NumeralString: Sized {
-    /// The type used for numeric operations.
-    type Num: Numeral;
+    /// Type used for FF1 computations.
+    ///
+    /// This may be `Self`, or it may be a type that can operate more efficiently.
+    type Ops: Operations;
 
     /// Returns whether this numeral string is valid for the base radix.
     fn is_valid(&self, radix: u32) -> bool;
@@ -156,21 +158,12 @@ pub trait NumeralString: Sized {
     /// Returns the number of numerals in this numeral string.
     fn numeral_count(&self) -> usize;
 
-    /// Splits this numeral string into two sections X[..u] and X[u..].
-    fn split(&self, u: usize) -> (Self, Self);
+    /// Splits this numeral string into two sections X[..u] and X[u..] that can be used
+    /// for FF1 computations.
+    fn split(&self, u: usize) -> (Self::Ops, Self::Ops);
 
-    /// Concatenates two numeral strings.
-    fn concat(a: Self, b: Self) -> Self;
-
-    /// The number that this numeral string represents in the base radix
-    /// when the numerals are valued in decreasing order of significance
-    /// (big-endian order).
-    fn num_radix(&self, radix: u32) -> Self::Num;
-
-    /// Given a non-negative integer x less than radix<sup>m</sup>, returns
-    /// the representation of x as a string of m numerals in base radix,
-    /// in decreasing order of significance (big-endian order).
-    fn str_radix(x: Self::Num, radix: u32, m: usize) -> Self;
+    /// Concatenates two strings used for FF1 computations into a single numeral string.
+    fn concat(a: Self::Ops, b: Self::Ops) -> Self;
 }
 
 #[derive(Clone)]
@@ -297,25 +290,18 @@ impl<CIPH: BlockCipher + BlockEncrypt + Clone> FF1<CIPH> {
         for i in 0..10 {
             let mut prf = prf.clone();
             prf.update(&[i]);
-            prf.update(x_b.num_radix(self.radix.to_u32()).to_bytes(b).as_ref());
+            prf.update(x_b.to_be_bytes(self.radix.to_u32(), b).as_ref());
             let r = prf.output();
 
             // 6iii. Let S be the first d bytes of R.
             let s = generate_s(&self.ciph, r, d);
 
             // 6iv. Let y = NUM(S).
-            let y = NS::Num::from_bytes(s);
-
             // 6v. If i is even, let m = u; else, let m = v.
-            let m = if i % 2 == 0 { u } else { v };
-
             // 6vi. Let c = (NUM(A, radix) + y) mod radix^m.
-            let c = x_a
-                .num_radix(self.radix.to_u32())
-                .add_mod_exp(y, self.radix.to_u32(), m);
-
             // 6vii. Let C = STR(c, radix).
-            let x_c = NS::str_radix(c, self.radix.to_u32(), m);
+            let m = if i % 2 == 0 { u } else { v };
+            let x_c = x_a.add_mod_exp(s, self.radix.to_u32(), m);
 
             // 6viii. Let A = B.
             x_a = x_b;
@@ -376,25 +362,18 @@ impl<CIPH: BlockCipher + BlockEncrypt + Clone> FF1<CIPH> {
             let i = 9 - i;
             let mut prf = prf.clone();
             prf.update(&[i]);
-            prf.update(x_a.num_radix(self.radix.to_u32()).to_bytes(b).as_ref());
+            prf.update(x_a.to_be_bytes(self.radix.to_u32(), b).as_ref());
             let r = prf.output();
 
             // 6iii. Let S be the first d bytes of R.
             let s = generate_s(&self.ciph, r, d);
 
             // 6iv. Let y = NUM(S).
-            let y = NS::Num::from_bytes(s);
-
             // 6v. If i is even, let m = u; else, let m = v.
-            let m = if i % 2 == 0 { u } else { v };
-
             // 6vi. Let c = (NUM(B, radix) - y) mod radix^m.
-            let c = x_b
-                .num_radix(self.radix.to_u32())
-                .sub_mod_exp(y, self.radix.to_u32(), m);
-
             // 6vii. Let C = STR(c, radix).
-            let x_c = NS::str_radix(c, self.radix.to_u32(), m);
+            let m = if i % 2 == 0 { u } else { v };
+            let x_c = x_b.sub_mod_exp(s, self.radix.to_u32(), m);
 
             // 6viii. Let B = A.
             x_b = x_a;

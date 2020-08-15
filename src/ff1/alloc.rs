@@ -11,7 +11,7 @@ use num_traits::{
     ToPrimitive,
 };
 
-use super::{Numeral, NumeralString};
+use super::{NumeralString, Operations};
 
 fn pow(x: u32, e: usize) -> BigUint {
     let mut res = BigUint::one();
@@ -19,6 +19,24 @@ fn pow(x: u32, e: usize) -> BigUint {
         res *= x;
     }
     res
+}
+
+/// Extension trait adding FF1-relevant methods to `BigUint`.
+trait Numeral {
+    /// Type used for byte representations.
+    type Bytes: AsRef<[u8]>;
+
+    /// Returns the integer interpreted from the given bytes in big-endian order.
+    fn from_bytes(s: impl Iterator<Item = u8>) -> Self;
+
+    /// Returns the big-endian byte representation of this integer.
+    fn to_bytes(&self, b: usize) -> Self::Bytes;
+
+    /// Compute (self + other) mod radix^m
+    fn add_mod_exp(self, other: Self, radix: u32, m: usize) -> Self;
+
+    /// Compute (self - other) mod radix^m
+    fn sub_mod_exp(self, other: Self, radix: u32, m: usize) -> Self;
 }
 
 impl Numeral for BigUint {
@@ -73,7 +91,7 @@ impl From<FlexibleNumeralString> for Vec<u16> {
 }
 
 impl NumeralString for FlexibleNumeralString {
-    type Num = BigUint;
+    type Ops = Self;
 
     fn is_valid(&self, radix: u32) -> bool {
         self.0.iter().all(|n| (u32::from(*n) < radix))
@@ -93,7 +111,29 @@ impl NumeralString for FlexibleNumeralString {
         a.0.append(&mut b.0);
         a
     }
+}
 
+impl Operations for FlexibleNumeralString {
+    type Bytes = Vec<u8>;
+
+    fn to_be_bytes(&self, radix: u32, b: usize) -> Self::Bytes {
+        self.num_radix(radix).to_bytes(b)
+    }
+
+    fn add_mod_exp(self, other: impl Iterator<Item = u8>, radix: u32, m: usize) -> Self {
+        let other = BigUint::from_bytes(other);
+        let c = self.num_radix(radix).add_mod_exp(other, radix, m);
+        Self::str_radix(c, radix, m)
+    }
+
+    fn sub_mod_exp(self, other: impl Iterator<Item = u8>, radix: u32, m: usize) -> Self {
+        let other = BigUint::from_bytes(other);
+        let c = self.num_radix(radix).sub_mod_exp(other, radix, m);
+        Self::str_radix(c, radix, m)
+    }
+}
+
+impl FlexibleNumeralString {
     fn num_radix(&self, radix: u32) -> BigUint {
         let mut res = BigUint::zero();
         for i in &self.0 {
@@ -154,7 +194,7 @@ impl BinaryNumeralString {
 }
 
 impl NumeralString for BinaryNumeralString {
-    type Num = BigUint;
+    type Ops = Self;
 
     fn is_valid(&self, radix: u32) -> bool {
         self.0.iter().all(|n| (u32::from(*n) < radix))
@@ -174,7 +214,29 @@ impl NumeralString for BinaryNumeralString {
         a.0.append(&mut b.0);
         a
     }
+}
 
+impl Operations for BinaryNumeralString {
+    type Bytes = Vec<u8>;
+
+    fn to_be_bytes(&self, radix: u32, b: usize) -> Self::Bytes {
+        self.num_radix(radix).to_bytes(b)
+    }
+
+    fn add_mod_exp(self, other: impl Iterator<Item = u8>, radix: u32, m: usize) -> Self {
+        let other = BigUint::from_bytes(other);
+        let c = self.num_radix(radix).add_mod_exp(other, radix, m);
+        Self::str_radix(c, radix, m)
+    }
+
+    fn sub_mod_exp(self, other: impl Iterator<Item = u8>, radix: u32, m: usize) -> Self {
+        let other = BigUint::from_bytes(other);
+        let c = self.num_radix(radix).sub_mod_exp(other, radix, m);
+        Self::str_radix(c, radix, m)
+    }
+}
+
+impl BinaryNumeralString {
     fn num_radix(&self, radix: u32) -> BigUint {
         let zero = BigUint::zero();
         let one = BigUint::one();
