@@ -25,13 +25,20 @@ impl Numeral for BigUint {
     }
 
     fn to_bytes(&self, b: usize) -> Vec<u8> {
-        let mut ret = Vec::with_capacity(b);
-        let bytes = self.to_bytes_be();
-        for _ in 0..(b - bytes.len()) {
-            ret.push(0);
+        if self.is_zero() {
+            // Because self.to_bytes_be() returns vec![0u8] for zero, instead of vec![], we would
+            // end up with a subtraction overflow on empty input (since (b - bytes.len()) < 0 or
+            // (0 - 1) < 0). This optimization side-steps that special case.
+            vec![0; b]
+        } else {
+            let mut ret = Vec::with_capacity(b);
+            let bytes = self.to_bytes_be();
+            for _ in 0..(b - bytes.len()) {
+                ret.push(0);
+            }
+            ret.extend(bytes);
+            ret
         }
-        ret.extend(bytes);
-        ret
     }
 
     fn add_mod_exp(self, other: Self, radix: u32, m: usize) -> Self {
