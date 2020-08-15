@@ -28,7 +28,8 @@ fn ff1_binary_benchmark(c: &mut Criterion<CyclesPerByte>) {
 
         let cipher = Aes256::new([0; 32][..].into());
         let mut scratch = vec![0; size + 1];
-        let mut binary_ff1_ff = binary_ff1::BinaryFF1::new(&cipher, *size, &[], &mut scratch).unwrap();
+        let mut binary_ff1_ff =
+            binary_ff1::BinaryFF1::new(&cipher, *size, &[], &mut scratch).unwrap();
 
         binary_ff1_group.throughput(Throughput::Bytes(*size as u64));
         binary_ff1_group.bench_with_input(BenchmarkId::from_parameter(size), size, |b, _| {
