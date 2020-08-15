@@ -1,7 +1,9 @@
 //! A Rust implementation of the FF1 algorithm, specified in
 //! [NIST Special Publication 800-38G](http://dx.doi.org/10.6028/NIST.SP.800-38G).
 
-use aes::block_cipher::{generic_array::GenericArray, BlockCipher, NewBlockCipher};
+use aes::block_cipher::{generic_array::GenericArray, Block, BlockCipher, NewBlockCipher};
+use block_modes::{block_padding::NoPadding, BlockMode, Cbc};
+use std::cmp;
 
 mod alloc;
 pub use alloc::{BinaryNumeralString, FlexibleNumeralString};
@@ -106,8 +108,49 @@ pub trait NumeralString: Sized {
     fn str_radix(x: Self::Num, radix: u32, m: usize) -> Self;
 }
 
-fn generate_s<CIPH: BlockCipher>(ciph: &CIPH, r: &[u8], d: usize) -> Vec<u8> {
-    let mut s = Vec::from(r);
+#[derive(Clone)]
+struct Prf<CIPH: NewBlockCipher + BlockCipher> {
+    state: Cbc<CIPH, NoPadding>,
+    // Contains the output when offset = 0, and partial input otherwise
+    buf: [Block<CIPH>; 1],
+    offset: usize,
+}
+
+impl<CIPH: NewBlockCipher + BlockCipher + Clone> Prf<CIPH> {
+    fn new(ciph: &CIPH) -> Self {
+        let ciph = ciph.clone();
+        Prf {
+            state: Cbc::new(ciph, GenericArray::from_slice(&[0; 16])),
+            buf: [Block::<CIPH>::default()],
+            offset: 0,
+        }
+    }
+
+    fn update(&mut self, mut data: &[u8]) {
+        while !data.is_empty() {
+            let to_read = cmp::min(self.buf[0].len() - self.offset, data.len());
+            self.buf[0][self.offset..self.offset + to_read].copy_from_slice(&data[..to_read]);
+            self.offset += to_read;
+            data = &data[to_read..];
+
+            if self.offset == self.buf[0].len() {
+                self.state.encrypt_blocks(&mut self.buf);
+                self.offset = 0;
+            }
+        }
+    }
+
+    /// Returns the current PRF output.
+    ///
+    /// The caller MUST ensure that the PRF has processed an integer number of blocks.
+    fn output(&self) -> &Block<CIPH> {
+        assert_eq!(self.offset, 0);
+        &self.buf[0]
+    }
+}
+
+fn generate_s<CIPH: BlockCipher>(ciph: &CIPH, r: &Block<CIPH>, d: usize) -> Vec<u8> {
+    let mut s = Vec::from(r.as_ref());
     s.reserve(d);
     {
         let mut j = 0u128;
@@ -131,20 +174,7 @@ pub struct FF1<CIPH: BlockCipher> {
     radix: Radix,
 }
 
-impl<CIPH: NewBlockCipher + BlockCipher> FF1<CIPH> {
-    fn prf(&self, x: &[u8]) -> [u8; 16] {
-        let m = x.len() / 16;
-        let mut y = [0u8; 16];
-        for j in 0..m {
-            for i in 0..16 {
-                y[i] ^= x[j * 16 + i];
-            }
-            self.ciph
-                .encrypt_block(&mut GenericArray::from_mut_slice(&mut y));
-        }
-        y
-    }
-
+impl<CIPH: NewBlockCipher + BlockCipher + Clone> FF1<CIPH> {
     /// Creates a new FF1 object for the given key and radix.
     ///
     /// Returns an error if the given radix is not in [2..2^16].
@@ -185,22 +215,21 @@ impl<CIPH: NewBlockCipher + BlockCipher> FF1<CIPH> {
         p[12..16].copy_from_slice(&(t as u32).to_be_bytes());
 
         //  6i. Let Q = T || [0]^((-t-b-1) mod 16) || [i] || [NUM(B, radix)].
-        let q_base = {
-            let val = ((((-(t as i32) - (b as i32) - 1) % 16) + 16) % 16) as usize;
-            let mut q = Vec::from(tweak);
-            q.resize(t + val, 0);
-            q
-        };
+        // 6ii. Let R = PRF(P || Q).
+        let mut prf = Prf::new(&self.ciph);
+        prf.update(&p);
+        prf.update(tweak);
+        for _ in 0..((((-(t as i32) - (b as i32) - 1) % 16) + 16) % 16) {
+            prf.update(&[0]);
+        }
         for i in 0..10 {
-            let mut q = q_base.clone();
-            q.push(i);
-            q.extend(x_b.num_radix(self.radix.to_u32()).to_bytes(b).as_ref());
-
-            // 6ii. Let R = PRF(P || Q).
-            let r = self.prf(&[&p[..], &q[..]].concat());
+            let mut prf = prf.clone();
+            prf.update(&[i]);
+            prf.update(x_b.num_radix(self.radix.to_u32()).to_bytes(b).as_ref());
+            let r = prf.output();
 
             // 6iii. Let S be the first d bytes of R.
-            let s = generate_s(&self.ciph, &r[..], d);
+            let s = generate_s(&self.ciph, r, d);
 
             // 6iv. Let y = NUM(S).
             let y = NS::Num::from_bytes(&s);
@@ -258,23 +287,22 @@ impl<CIPH: NewBlockCipher + BlockCipher> FF1<CIPH> {
         p[12..16].copy_from_slice(&(t as u32).to_be_bytes());
 
         //  6i. Let Q = T || [0]^((-t-b-1) mod 16) || [i] || [NUM(A, radix)].
-        let q_base = {
-            let val = ((((-(t as i32) - (b as i32) - 1) % 16) + 16) % 16) as usize;
-            let mut q = Vec::from(tweak);
-            q.resize(t + val, 0);
-            q
-        };
+        // 6ii. Let R = PRF(P || Q).
+        let mut prf = Prf::new(&self.ciph);
+        prf.update(&p);
+        prf.update(tweak);
+        for _ in 0..((((-(t as i32) - (b as i32) - 1) % 16) + 16) % 16) {
+            prf.update(&[0]);
+        }
         for i in 0..10 {
             let i = 9 - i;
-            let mut q = q_base.clone();
-            q.push(i);
-            q.extend(x_a.num_radix(self.radix.to_u32()).to_bytes(b).as_ref());
-
-            // 6ii. Let R = PRF(P || Q).
-            let r = self.prf(&[&p[..], &q[..]].concat());
+            let mut prf = prf.clone();
+            prf.update(&[i]);
+            prf.update(x_a.num_radix(self.radix.to_u32()).to_bytes(b).as_ref());
+            let r = prf.output();
 
             // 6iii. Let S be the first d bytes of R.
-            let s = generate_s(&self.ciph, &r[..], d);
+            let s = generate_s(&self.ciph, r, d);
 
             // 6iv. Let y = NUM(S).
             let y = NS::Num::from_bytes(&s);
