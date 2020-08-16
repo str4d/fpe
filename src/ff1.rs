@@ -68,7 +68,7 @@ pub trait Numeral {
     type Bytes: AsRef<[u8]>;
 
     /// Returns the integer interpreted from the given bytes in big-endian order.
-    fn from_bytes(s: &[u8]) -> Self;
+    fn from_bytes(s: impl Iterator<Item = u8>) -> Self;
 
     /// Returns the big-endian byte representation of this integer.
     fn to_bytes(&self, b: usize) -> Self::Bytes;
@@ -149,23 +149,22 @@ impl<CIPH: NewBlockCipher + BlockCipher + Clone> Prf<CIPH> {
     }
 }
 
-fn generate_s<CIPH: BlockCipher>(ciph: &CIPH, r: &Block<CIPH>, d: usize) -> Vec<u8> {
-    let mut s = Vec::from(r.as_ref());
-    s.reserve(d);
-    {
-        let mut j = 0u128;
-        while s.len() < d {
-            j += 1;
-            let mut block = j.to_be_bytes();
-            for k in 0..16 {
-                block[k] ^= r[k];
+fn generate_s<'a, CIPH: BlockCipher>(
+    ciph: &'a CIPH,
+    r: &'a Block<CIPH>,
+    d: usize,
+) -> impl Iterator<Item = u8> + 'a {
+    r.clone()
+        .into_iter()
+        .chain((1..((d + 15) / 16) as u128).flat_map(move |j| {
+            let mut block = r.clone();
+            for (b, j) in block.iter_mut().zip(j.to_be_bytes().iter()) {
+                *b ^= j;
             }
-            ciph.encrypt_block(&mut GenericArray::from_mut_slice(&mut block));
-            s.extend_from_slice(&block[..]);
-        }
-    }
-    s.truncate(d);
-    s
+            ciph.encrypt_block(&mut block);
+            block.into_iter()
+        }))
+        .take(d)
 }
 
 /// A struct for performing FF1 encryption and decryption operations.
@@ -232,7 +231,7 @@ impl<CIPH: NewBlockCipher + BlockCipher + Clone> FF1<CIPH> {
             let s = generate_s(&self.ciph, r, d);
 
             // 6iv. Let y = NUM(S).
-            let y = NS::Num::from_bytes(&s);
+            let y = NS::Num::from_bytes(s);
 
             // 6v. If i is even, let m = u; else, let m = v.
             let m = if i % 2 == 0 { u } else { v };
@@ -305,7 +304,7 @@ impl<CIPH: NewBlockCipher + BlockCipher + Clone> FF1<CIPH> {
             let s = generate_s(&self.ciph, r, d);
 
             // 6iv. Let y = NUM(S).
-            let y = NS::Num::from_bytes(&s);
+            let y = NS::Num::from_bytes(s);
 
             // 6v. If i is even, let m = u; else, let m = v.
             let m = if i % 2 == 0 { u } else { v };

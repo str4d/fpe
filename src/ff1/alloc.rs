@@ -20,8 +20,8 @@ fn pow(x: u32, e: usize) -> BigUint {
 impl Numeral for BigUint {
     type Bytes = Vec<u8>;
 
-    fn from_bytes(s: &[u8]) -> Self {
-        BigUint::from_bytes_be(s)
+    fn from_bytes(s: impl Iterator<Item = u8>) -> Self {
+        BigUint::from_bytes_be(&s.collect::<Vec<_>>())
     }
 
     fn to_bytes(&self, b: usize) -> Vec<u8> {
