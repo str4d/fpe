@@ -1,7 +1,10 @@
 //! A Rust implementation of the FF1 algorithm, specified in
 //! [NIST Special Publication 800-38G](http://dx.doi.org/10.6028/NIST.SP.800-38G).
 
-use aes::block_cipher::{generic_array::GenericArray, Block, BlockCipher, NewBlockCipher};
+use aes::cipher::{
+    block::{Block, BlockCipher, NewBlockCipher},
+    generic_array::GenericArray,
+};
 use block_modes::{block_padding::NoPadding, BlockMode, Cbc};
 use std::cmp;
 
