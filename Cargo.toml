@@ -10,8 +10,8 @@ homepage = "https://github.com/str4d/fpe"
 repository = "https://github.com/str4d/fpe"
 
 [dependencies]
-aes = "0.5"
-block-modes = "0.6"
+aes = "0.6"
+block-modes = "0.7"
 num-bigint = "0.3"
 num-integer = "0.1"
 num-traits = "0.2"
