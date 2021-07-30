@@ -7,7 +7,9 @@ use cipher::{
 };
 use std::cmp;
 
+#[cfg(feature = "alloc")]
 mod alloc;
+#[cfg(feature = "alloc")]
 pub use alloc::{BinaryNumeralString, FlexibleNumeralString};
 
 #[derive(Debug, PartialEq)]
