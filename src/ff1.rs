@@ -112,14 +112,14 @@ pub trait NumeralString: Sized {
 }
 
 #[derive(Clone)]
-struct Prf<CIPH: BlockCipher + BlockEncrypt + BlockDecrypt> {
+struct Prf<CIPH: BlockEncrypt + BlockDecrypt> {
     state: Cbc<CIPH, NoPadding>,
     // Contains the output when offset = 0, and partial input otherwise
     buf: [Block<CIPH>; 1],
     offset: usize,
 }
 
-impl<CIPH: BlockCipher + BlockEncrypt + BlockDecrypt + Clone> Prf<CIPH> {
+impl<CIPH: BlockEncrypt + BlockDecrypt + Clone> Prf<CIPH> {
     fn new(ciph: &CIPH) -> Self {
         let ciph = ciph.clone();
         Prf {
@@ -176,7 +176,7 @@ pub struct FF1<CIPH: BlockCipher> {
     radix: Radix,
 }
 
-impl<CIPH: NewBlockCipher + BlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
+impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
     /// Creates a new FF1 object for the given key and radix.
     ///
     /// Returns an error if the given radix is not in [2..2^16].
