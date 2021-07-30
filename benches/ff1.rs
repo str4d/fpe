@@ -20,6 +20,7 @@ fn ff1_binary_benchmark(c: &mut Criterion<CyclesPerByte>) {
     }
     fpe_group.finish();
 
+    /*
     let mut binary_ff1_group = c.benchmark_group("binary-ff1");
     for size in [10, 100, 1000].iter() {
         use aes_old::{block_cipher_trait::BlockCipher, Aes256};
@@ -37,6 +38,7 @@ fn ff1_binary_benchmark(c: &mut Criterion<CyclesPerByte>) {
         });
     }
     binary_ff1_group.finish();
+    */
 }
 
 criterion_group!(

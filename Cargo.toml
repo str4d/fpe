@@ -17,8 +17,8 @@ num-integer = "0.1"
 num-traits = "0.2"
 
 [dev-dependencies]
-aes-old = { package = "aes", version = "0.3" }
-binary-ff1 = "0.1"
+#aes-old = { package = "aes", version = "0.3" }
+#binary-ff1 = "0.1"
 criterion = "0.3"
 criterion-cycles-per-byte = "0.1"
 
