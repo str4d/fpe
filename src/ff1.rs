@@ -2,8 +2,8 @@
 //! [NIST Special Publication 800-38G](http://dx.doi.org/10.6028/NIST.SP.800-38G).
 
 use aes::{
+    cipher::{generic_array::GenericArray, Block},
     BlockCipher, BlockDecrypt, BlockEncrypt, NewBlockCipher,
-    cipher::{Block, generic_array::GenericArray}
 };
 use block_modes::{block_padding::NoPadding, BlockMode, Cbc};
 use std::cmp;
