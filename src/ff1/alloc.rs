@@ -1,5 +1,7 @@
 //! FF1 NumeralString implementations that require a global allocator.
 
+use std::iter;
+
 use num_bigint::{BigInt, BigUint, Sign};
 use num_integer::Integer;
 use num_traits::{
@@ -31,13 +33,8 @@ impl Numeral for BigUint {
             // (0 - 1) < 0). This optimization side-steps that special case.
             vec![0; b]
         } else {
-            let mut ret = Vec::with_capacity(b);
             let bytes = self.to_bytes_be();
-            for _ in 0..(b - bytes.len()) {
-                ret.push(0);
-            }
-            ret.extend(bytes);
-            ret
+            iter::repeat(0).take(b - bytes.len()).chain(bytes).collect()
         }
     }
 
@@ -226,7 +223,7 @@ mod tests {
             AES128,
             AES192,
             AES256,
-        };
+        }
 
         struct TestVector {
             aes: AesType,
@@ -235,7 +232,7 @@ mod tests {
             tweak: Vec<u8>,
             pt: Vec<u16>,
             ct: Vec<u16>,
-        };
+        }
 
         let test_vectors = vec![
             // From https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/FF1samples.pdf
@@ -540,7 +537,7 @@ mod tests {
             ct: Vec<u8>,
             bpt: Vec<u8>,
             bct: Vec<u8>,
-        };
+        }
 
         let test_vectors = vec![
             // Zcash test vectors

@@ -21,8 +21,8 @@ enum Radix {
 
 impl Radix {
     pub fn from(radix: u32) -> Result<Self, ()> {
-        // radix must be in range [2..2^16]
-        if radix < 2 || radix > (1 << 16) {
+        // radix must be in range [2..=2^16]
+        if !(2..=(1 << 16)).contains(&radix) {
             return Err(());
         }
 
@@ -189,6 +189,7 @@ impl<CIPH: NewBlockCipher + BlockCipher + BlockEncrypt + BlockDecrypt + Clone> F
     /// Encrypts the given numeral string.
     ///
     /// Returns an error if the numeral string is not in the required radix.
+    #[allow(clippy::many_single_char_names)]
     pub fn encrypt<NS: NumeralString>(&self, tweak: &[u8], x: &NS) -> Result<NS, ()> {
         if !x.is_valid(self.radix.to_u32()) {
             return Err(());
@@ -261,6 +262,7 @@ impl<CIPH: NewBlockCipher + BlockCipher + BlockEncrypt + BlockDecrypt + Clone> F
     /// Decrypts the given numeral string.
     ///
     /// Returns an error if the numeral string is not in the required radix.
+    #[allow(clippy::many_single_char_names)]
     pub fn decrypt<NS: NumeralString>(&self, tweak: &[u8], x: &NS) -> Result<NS, ()> {
         if !x.is_valid(self.radix.to_u32()) {
             return Err(());
