@@ -10,8 +10,9 @@ homepage = "https://github.com/str4d/fpe"
 repository = "https://github.com/str4d/fpe"
 
 [dependencies]
-block-modes = "0.8"
+block-modes = { version = "0.8", default-features = false }
 cipher = "0.3"
+libm = "0.2"
 
 num-bigint = { version = "0.4", optional = true }
 num-integer = { version = "0.1", optional = true }

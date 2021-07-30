@@ -1,6 +1,8 @@
 //! FF1 NumeralString implementations that require a global allocator.
 
-use std::iter;
+use core::iter;
+
+use alloc::{vec, vec::Vec};
 
 use num_bigint::{BigInt, BigUint, Sign};
 use num_integer::Integer;
