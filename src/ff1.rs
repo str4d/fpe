@@ -2,8 +2,8 @@
 //! [NIST Special Publication 800-38G](http://dx.doi.org/10.6028/NIST.SP.800-38G).
 
 use aes::{
+    cipher::{generic_array::GenericArray, Block},
     BlockCipher, BlockDecrypt, BlockEncrypt, NewBlockCipher,
-    cipher::{Block, generic_array::GenericArray}
 };
 use block_modes::{block_padding::NoPadding, BlockMode, Cbc};
 use std::cmp;
@@ -21,8 +21,8 @@ enum Radix {
 
 impl Radix {
     pub fn from(radix: u32) -> Result<Self, ()> {
-        // radix must be in range [2..2^16]
-        if radix < 2 || radix > (1 << 16) {
+        // radix must be in range [2..=2^16]
+        if !(2..=(1 << 16)).contains(&radix) {
             return Err(());
         }
 
@@ -112,14 +112,14 @@ pub trait NumeralString: Sized {
 }
 
 #[derive(Clone)]
-struct Prf<CIPH: BlockCipher + BlockEncrypt + BlockDecrypt> {
+struct Prf<CIPH: BlockEncrypt + BlockDecrypt> {
     state: Cbc<CIPH, NoPadding>,
     // Contains the output when offset = 0, and partial input otherwise
     buf: [Block<CIPH>; 1],
     offset: usize,
 }
 
-impl<CIPH: BlockCipher + BlockEncrypt + BlockDecrypt + Clone> Prf<CIPH> {
+impl<CIPH: BlockEncrypt + BlockDecrypt + Clone> Prf<CIPH> {
     fn new(ciph: &CIPH) -> Self {
         let ciph = ciph.clone();
         Prf {
@@ -176,7 +176,7 @@ pub struct FF1<CIPH: BlockCipher> {
     radix: Radix,
 }
 
-impl<CIPH: NewBlockCipher + BlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
+impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
     /// Creates a new FF1 object for the given key and radix.
     ///
     /// Returns an error if the given radix is not in [2..2^16].
@@ -189,6 +189,7 @@ impl<CIPH: NewBlockCipher + BlockCipher + BlockEncrypt + BlockDecrypt + Clone> F
     /// Encrypts the given numeral string.
     ///
     /// Returns an error if the numeral string is not in the required radix.
+    #[allow(clippy::many_single_char_names)]
     pub fn encrypt<NS: NumeralString>(&self, tweak: &[u8], x: &NS) -> Result<NS, ()> {
         if !x.is_valid(self.radix.to_u32()) {
             return Err(());
@@ -261,6 +262,7 @@ impl<CIPH: NewBlockCipher + BlockCipher + BlockEncrypt + BlockDecrypt + Clone> F
     /// Decrypts the given numeral string.
     ///
     /// Returns an error if the numeral string is not in the required radix.
+    #[allow(clippy::many_single_char_names)]
     pub fn decrypt<NS: NumeralString>(&self, tweak: &[u8], x: &NS) -> Result<NS, ()> {
         if !x.is_valid(self.radix.to_u32()) {
             return Err(());
