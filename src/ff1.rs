@@ -1,9 +1,9 @@
 //! A Rust implementation of the FF1 algorithm, specified in
 //! [NIST Special Publication 800-38G](http://dx.doi.org/10.6028/NIST.SP.800-38G).
 
-use aes::cipher::{
-    block::{Block, BlockCipher, NewBlockCipher},
-    generic_array::GenericArray,
+use aes::{
+    BlockCipher, BlockDecrypt, BlockEncrypt, NewBlockCipher,
+    cipher::{Block, generic_array::GenericArray}
 };
 use block_modes::{block_padding::NoPadding, BlockMode, Cbc};
 use std::cmp;
@@ -112,14 +112,14 @@ pub trait NumeralString: Sized {
 }
 
 #[derive(Clone)]
-struct Prf<CIPH: NewBlockCipher + BlockCipher> {
+struct Prf<CIPH: BlockCipher + BlockEncrypt + BlockDecrypt> {
     state: Cbc<CIPH, NoPadding>,
     // Contains the output when offset = 0, and partial input otherwise
     buf: [Block<CIPH>; 1],
     offset: usize,
 }
 
-impl<CIPH: NewBlockCipher + BlockCipher + Clone> Prf<CIPH> {
+impl<CIPH: BlockCipher + BlockEncrypt + BlockDecrypt + Clone> Prf<CIPH> {
     fn new(ciph: &CIPH) -> Self {
         let ciph = ciph.clone();
         Prf {
@@ -152,7 +152,7 @@ impl<CIPH: NewBlockCipher + BlockCipher + Clone> Prf<CIPH> {
     }
 }
 
-fn generate_s<'a, CIPH: BlockCipher>(
+fn generate_s<'a, CIPH: BlockEncrypt>(
     ciph: &'a CIPH,
     r: &'a Block<CIPH>,
     d: usize,
@@ -176,7 +176,7 @@ pub struct FF1<CIPH: BlockCipher> {
     radix: Radix,
 }
 
-impl<CIPH: NewBlockCipher + BlockCipher + Clone> FF1<CIPH> {
+impl<CIPH: NewBlockCipher + BlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
     /// Creates a new FF1 object for the given key and radix.
     ///
     /// Returns an error if the given radix is not in [2..2^16].
