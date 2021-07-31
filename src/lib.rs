@@ -21,6 +21,10 @@
 //! assert_eq!(p2.to_bytes_le(), pt);
 //! ```
 
+#![cfg_attr(not(test), no_std)]
 #![deny(missing_docs)] // refuse to compile if documentation is missing
+
+#[cfg(feature = "alloc")]
+extern crate alloc;
 
 pub mod ff1;

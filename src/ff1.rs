@@ -1,14 +1,17 @@
 //! A Rust implementation of the FF1 algorithm, specified in
 //! [NIST Special Publication 800-38G](http://dx.doi.org/10.6028/NIST.SP.800-38G).
 
+use core::cmp;
+
 use block_modes::{block_padding::NoPadding, BlockMode, Cbc};
 use cipher::{
     generic_array::GenericArray, Block, BlockCipher, BlockDecrypt, BlockEncrypt, NewBlockCipher,
 };
-use std::cmp;
 
+#[cfg(feature = "alloc")]
 mod alloc;
-pub use alloc::{BinaryNumeralString, FlexibleNumeralString};
+#[cfg(feature = "alloc")]
+pub use self::alloc::{BinaryNumeralString, FlexibleNumeralString};
 
 #[derive(Debug, PartialEq)]
 enum Radix {
@@ -50,8 +53,9 @@ impl Radix {
 
     /// Calculates b = ceil(ceil(v * log2(radix)) / 8).
     fn calculate_b(&self, v: usize) -> usize {
+        use libm::{ceil, log2};
         match *self {
-            Radix::Any(r) => (v as f64 * f64::from(r).log2() / 8f64).ceil() as usize,
+            Radix::Any(r) => ceil(v as f64 * log2(f64::from(r)) / 8f64) as usize,
             Radix::PowerTwo { log_radix, .. } => ((v * log_radix as usize) + 7) / 8,
         }
     }

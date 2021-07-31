@@ -35,6 +35,11 @@ jobs:
         with:
           toolchain: 1.49.0
           override: true
+      - name: Check we can build with --no-default-features
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --verbose --no-default-features
       - name: Run tests
         uses: actions-rs/cargo@v1
         with:
