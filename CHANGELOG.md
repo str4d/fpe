@@ -6,6 +6,8 @@ and this library adheres to Rust's notion of
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.5.0] - 2021-07-31
 ### Added
 - `no-std` support.
   - `libm` dependency for math operations that aren't available in `core`.
