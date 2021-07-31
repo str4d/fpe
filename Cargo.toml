@@ -10,13 +10,14 @@ homepage = "https://github.com/str4d/fpe"
 repository = "https://github.com/str4d/fpe"
 
 [dependencies]
-aes = "0.7"
 block-modes = "0.8"
+cipher = "0.3"
 num-bigint = "0.4"
 num-integer = "0.1"
 num-traits = "0.2"
 
 [dev-dependencies]
+aes = "0.7"
 #aes-old = { package = "aes", version = "0.3" }
 #binary-ff1 = "0.1"
 criterion = "0.3"
