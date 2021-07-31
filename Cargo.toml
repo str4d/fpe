@@ -8,6 +8,8 @@ description = "Format-preserving encryption"
 documentation = "https://docs.rs/fpe/"
 homepage = "https://github.com/str4d/fpe"
 repository = "https://github.com/str4d/fpe"
+keywords = ["ff1"]
+categories = ["cryptography", "no-std"]
 
 [dependencies]
 block-modes = { version = "0.8", default-features = false }
