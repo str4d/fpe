@@ -15,7 +15,7 @@
 //!
 //! let ff = FF1::<Aes256>::new(&key, radix).unwrap();
 //! let ct = ff.encrypt(&[], &BinaryNumeralString::from_bytes_le(&pt)).unwrap();
-//! assert_eq!(ct.to_bytes_le(), [0x75, 0xfb, 0x62]);
+//! assert_eq!(ct.to_bytes_le(), [90, 108, 32]);
 //!
 //! let p2 = ff.decrypt(&[], &ct).unwrap();
 //! assert_eq!(p2.to_bytes_le(), pt);

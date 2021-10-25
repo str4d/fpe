@@ -207,7 +207,7 @@ mod tests {
     use aes::{Aes128, Aes192, Aes256};
 
     use super::{BinaryNumeralString, FlexibleNumeralString};
-    use crate::ff1::{NumeralString, FF1};
+    use crate::ff1::{NumeralString, FEISTEL_ROUNDS_NUMBER, FF1, ORIGINAL_FEISTEL_ROUNDS_NUMBER};
 
     #[test]
     fn ns_is_valid() {
@@ -234,6 +234,7 @@ mod tests {
             tweak: Vec<u8>,
             pt: Vec<u16>,
             ct: Vec<u16>,
+            rounds_number: u8,
         }
 
         let test_vectors = vec![
@@ -249,6 +250,7 @@ mod tests {
                 tweak: vec![],
                 pt: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
                 ct: vec![2, 4, 3, 3, 4, 7, 7, 4, 8, 4],
+                rounds_number: ORIGINAL_FEISTEL_ROUNDS_NUMBER,
             },
             TestVector {
                 // Sample #2
@@ -261,6 +263,7 @@ mod tests {
                 tweak: vec![0x39, 0x38, 0x37, 0x36, 0x35, 0x34, 0x33, 0x32, 0x31, 0x30],
                 pt: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
                 ct: vec![6, 1, 2, 4, 2, 0, 0, 7, 7, 3],
+                rounds_number: ORIGINAL_FEISTEL_ROUNDS_NUMBER,
             },
             TestVector {
                 // Sample #3
@@ -279,6 +282,7 @@ mod tests {
                 ct: vec![
                     10, 9, 29, 31, 4, 0, 22, 21, 21, 9, 20, 13, 30, 5, 0, 9, 14, 30, 22,
                 ],
+                rounds_number: ORIGINAL_FEISTEL_ROUNDS_NUMBER,
             },
             TestVector {
                 // Sample #4
@@ -291,6 +295,7 @@ mod tests {
                 tweak: vec![],
                 pt: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
                 ct: vec![2, 8, 3, 0, 6, 6, 8, 1, 3, 2],
+                rounds_number: ORIGINAL_FEISTEL_ROUNDS_NUMBER,
             },
             TestVector {
                 // Sample #5
@@ -303,6 +308,7 @@ mod tests {
                 tweak: vec![0x39, 0x38, 0x37, 0x36, 0x35, 0x34, 0x33, 0x32, 0x31, 0x30],
                 pt: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
                 ct: vec![2, 4, 9, 6, 6, 5, 5, 5, 4, 9],
+                rounds_number: ORIGINAL_FEISTEL_ROUNDS_NUMBER,
             },
             TestVector {
                 // Sample #6
@@ -321,6 +327,7 @@ mod tests {
                 ct: vec![
                     33, 11, 19, 3, 20, 31, 3, 5, 19, 27, 10, 32, 33, 31, 3, 2, 34, 28, 27,
                 ],
+                rounds_number: ORIGINAL_FEISTEL_ROUNDS_NUMBER,
             },
             TestVector {
                 // Sample #7
@@ -334,6 +341,7 @@ mod tests {
                 tweak: vec![],
                 pt: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
                 ct: vec![6, 6, 5, 7, 6, 6, 7, 0, 0, 9],
+                rounds_number: ORIGINAL_FEISTEL_ROUNDS_NUMBER,
             },
             TestVector {
                 // Sample #8
@@ -347,6 +355,7 @@ mod tests {
                 tweak: vec![0x39, 0x38, 0x37, 0x36, 0x35, 0x34, 0x33, 0x32, 0x31, 0x30],
                 pt: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
                 ct: vec![1, 0, 0, 1, 6, 2, 3, 4, 6, 3],
+                rounds_number: ORIGINAL_FEISTEL_ROUNDS_NUMBER,
             },
             TestVector {
                 // Sample #9
@@ -366,6 +375,7 @@ mod tests {
                 ct: vec![
                     33, 28, 8, 10, 0, 10, 35, 17, 2, 10, 31, 34, 10, 21, 34, 35, 30, 32, 13,
                 ],
+                rounds_number: ORIGINAL_FEISTEL_ROUNDS_NUMBER,
             },
             // From https://github.com/capitalone/fpe/blob/master/ff1/ff1_test.go
             TestVector {
@@ -396,6 +406,7 @@ mod tests {
                     7, 33, 24, 6, 35, 28, 34, 21, 26, 12, 27, 0, 23, 11, 33, 9, 19, 11, 15, 1, 0,
                     30, 22, 35, 24, 20,
                 ],
+                rounds_number: ORIGINAL_FEISTEL_ROUNDS_NUMBER,
             },
             // Zcash test vectors
             // From https://github.com/zcash-hackworks/zcash-test-vectors/blob/master/ff1.py
@@ -415,6 +426,7 @@ mod tests {
                     0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1,
                     0, 0, 1, 1, 0, 0, 1, 1, 1, 1,
                 ],
+                rounds_number: ORIGINAL_FEISTEL_ROUNDS_NUMBER,
             },
             TestVector {
                 aes: AesType::AES256,
@@ -437,6 +449,7 @@ mod tests {
                     0, 1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1,
                     1, 1, 1, 1, 0, 1, 1, 0, 0, 0,
                 ],
+                rounds_number: ORIGINAL_FEISTEL_ROUNDS_NUMBER,
             },
             TestVector {
                 aes: AesType::AES256,
@@ -459,6 +472,7 @@ mod tests {
                     0, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0,
                     1, 1, 0, 0, 1, 0, 0, 1, 1, 0,
                 ],
+                rounds_number: ORIGINAL_FEISTEL_ROUNDS_NUMBER,
             },
             TestVector {
                 aes: AesType::AES256,
@@ -497,6 +511,282 @@ mod tests {
                     1, 0, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1,
                     1, 0, 1, 0, 1, 0, 0, 0, 1, 1,
                 ],
+                rounds_number: ORIGINAL_FEISTEL_ROUNDS_NUMBER,
+            },
+            // New test vectors related to 18-Feistel rounds number
+            TestVector {
+                // Sample #1
+                aes: AesType::AES128,
+                key: vec![
+                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
+                    0xCF, 0x4F, 0x3C,
+                ],
+                radix: 10,
+                tweak: vec![],
+                pt: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+                ct: vec![3, 1, 4, 4, 0, 8, 1, 4, 4, 9],
+                rounds_number: FEISTEL_ROUNDS_NUMBER,
+            },
+            TestVector {
+                // Sample #2
+                aes: AesType::AES128,
+                key: vec![
+                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
+                    0xCF, 0x4F, 0x3C,
+                ],
+                radix: 10,
+                tweak: vec![0x39, 0x38, 0x37, 0x36, 0x35, 0x34, 0x33, 0x32, 0x31, 0x30],
+                pt: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+                ct: vec![0, 4, 7, 0, 6, 7, 6, 2, 5, 7],
+                rounds_number: FEISTEL_ROUNDS_NUMBER,
+            },
+            TestVector {
+                // Sample #3
+                aes: AesType::AES128,
+                key: vec![
+                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
+                    0xCF, 0x4F, 0x3C,
+                ],
+                radix: 36,
+                tweak: vec![
+                    0x37, 0x37, 0x37, 0x37, 0x70, 0x71, 0x72, 0x73, 0x37, 0x37, 0x37,
+                ],
+                pt: vec![
+                    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+                ],
+                ct: vec![
+                    15, 19, 25, 22, 26, 7, 25, 17, 22, 20, 23, 15, 14, 12, 0, 19, 15, 10, 2,
+                ],
+                rounds_number: FEISTEL_ROUNDS_NUMBER,
+            },
+            TestVector {
+                // Sample #4
+                aes: AesType::AES192,
+                key: vec![
+                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
+                    0xCF, 0x4F, 0x3C, 0xEF, 0x43, 0x59, 0xD8, 0xD5, 0x80, 0xAA, 0x4F,
+                ],
+                radix: 10,
+                tweak: vec![],
+                pt: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+                ct: vec![0, 3, 6, 6, 1, 1, 3, 4, 7, 8],
+                rounds_number: FEISTEL_ROUNDS_NUMBER,
+            },
+            TestVector {
+                // Sample #5
+                aes: AesType::AES192,
+                key: vec![
+                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
+                    0xCF, 0x4F, 0x3C, 0xEF, 0x43, 0x59, 0xD8, 0xD5, 0x80, 0xAA, 0x4F,
+                ],
+                radix: 10,
+                tweak: vec![0x39, 0x38, 0x37, 0x36, 0x35, 0x34, 0x33, 0x32, 0x31, 0x30],
+                pt: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+                ct: vec![1, 6, 9, 2, 9, 1, 6, 1, 4, 2],
+                rounds_number: FEISTEL_ROUNDS_NUMBER,
+            },
+            TestVector {
+                // Sample #6
+                aes: AesType::AES192,
+                key: vec![
+                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
+                    0xCF, 0x4F, 0x3C, 0xEF, 0x43, 0x59, 0xD8, 0xD5, 0x80, 0xAA, 0x4F,
+                ],
+                radix: 36,
+                tweak: vec![
+                    0x37, 0x37, 0x37, 0x37, 0x70, 0x71, 0x72, 0x73, 0x37, 0x37, 0x37,
+                ],
+                pt: vec![
+                    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+                ],
+                ct: vec![
+                    14, 10, 26, 31, 15, 17, 34, 17, 0, 22, 15, 21, 33, 0, 18, 16, 9, 4, 5,
+                ],
+                rounds_number: FEISTEL_ROUNDS_NUMBER,
+            },
+            TestVector {
+                // Sample #7
+                aes: AesType::AES256,
+                key: vec![
+                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
+                    0xCF, 0x4F, 0x3C, 0xEF, 0x43, 0x59, 0xD8, 0xD5, 0x80, 0xAA, 0x4F, 0x7F, 0x03,
+                    0x6D, 0x6F, 0x04, 0xFC, 0x6A, 0x94,
+                ],
+                radix: 10,
+                tweak: vec![],
+                pt: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+                ct: vec![2, 9, 7, 0, 4, 9, 4, 7, 3, 7],
+                rounds_number: FEISTEL_ROUNDS_NUMBER,
+            },
+            TestVector {
+                // Sample #8
+                aes: AesType::AES256,
+                key: vec![
+                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
+                    0xCF, 0x4F, 0x3C, 0xEF, 0x43, 0x59, 0xD8, 0xD5, 0x80, 0xAA, 0x4F, 0x7F, 0x03,
+                    0x6D, 0x6F, 0x04, 0xFC, 0x6A, 0x94,
+                ],
+                radix: 10,
+                tweak: vec![0x39, 0x38, 0x37, 0x36, 0x35, 0x34, 0x33, 0x32, 0x31, 0x30],
+                pt: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+                ct: vec![9, 0, 8, 8, 3, 6, 3, 5, 3, 9],
+                rounds_number: FEISTEL_ROUNDS_NUMBER,
+            },
+            TestVector {
+                // Sample #9
+                aes: AesType::AES256,
+                key: vec![
+                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
+                    0xCF, 0x4F, 0x3C, 0xEF, 0x43, 0x59, 0xD8, 0xD5, 0x80, 0xAA, 0x4F, 0x7F, 0x03,
+                    0x6D, 0x6F, 0x04, 0xFC, 0x6A, 0x94,
+                ],
+                radix: 36,
+                tweak: vec![
+                    0x37, 0x37, 0x37, 0x37, 0x70, 0x71, 0x72, 0x73, 0x37, 0x37, 0x37,
+                ],
+                pt: vec![
+                    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+                ],
+                ct: vec![
+                    2, 27, 3, 25, 32, 20, 14, 16, 4, 15, 11, 6, 32, 2, 1, 31, 24, 10, 29,
+                ],
+                rounds_number: FEISTEL_ROUNDS_NUMBER,
+            },
+            // From https://github.com/capitalone/fpe/blob/master/ff1/ff1_test.go
+            TestVector {
+                aes: AesType::AES256,
+                key: vec![
+                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
+                    0xCF, 0x4F, 0x3C, 0xEF, 0x43, 0x59, 0xD8, 0xD5, 0x80, 0xAA, 0x4F, 0x7F, 0x03,
+                    0x6D, 0x6F, 0x04, 0xFC, 0x6A, 0x94,
+                ],
+                radix: 36,
+                tweak: vec![],
+                pt: vec![
+                    33, 28, 8, 10, 0, 10, 35, 17, 2, 10, 31, 34, 10, 21, 34, 35, 30, 32, 13, 33,
+                    28, 8, 10, 0, 10, 35, 17, 2, 10, 31, 34, 10, 21, 34, 35, 30, 32, 13, 33, 28, 8,
+                    10, 0, 10, 35, 17, 2, 10, 31, 34, 10, 21, 34, 35, 30, 32, 13, 33, 28, 8, 10, 0,
+                    10, 35, 17, 2, 10, 31, 34, 10, 21, 34, 35, 30, 32, 13, 33, 28, 8, 10, 0, 10,
+                    35, 17, 2, 10, 31, 34, 10, 21, 34, 35, 30, 32, 13, 33, 28, 8, 10, 0, 10, 35,
+                    17, 2, 10, 31, 34, 10, 21, 34, 35, 30, 32, 13, 33, 28, 8, 10, 0, 10, 35, 17, 2,
+                    10, 31, 34, 10, 21,
+                ],
+                // lwulibfp1ju3ksztumqomwenpv7duy9q7pg7zf3eg3rjlfy46gmgkqjfwvromfjjktmbey8meqk9zkcmgvkv4s9ll5ctozme1hf15w7xo6zsylqcr0nbx9jbf10umzok
+                ct: vec![
+                    6, 14, 25, 14, 12, 7, 26, 18, 21, 11, 33, 31, 15, 13, 32, 6, 19, 4, 19, 25, 19,
+                    3, 26, 12, 20, 1, 2, 19, 15, 9, 21, 15, 34, 6, 19, 0, 16, 30, 5, 26, 12, 2, 21,
+                    10, 10, 34, 0, 3, 25, 29, 9, 32, 4, 16, 35, 13, 0, 11, 19, 27, 25, 27, 14, 26,
+                    30, 1, 14, 4, 18, 35, 16, 31, 8, 18, 28, 21, 30, 0, 26, 12, 32, 9, 17, 14, 15,
+                    21, 25, 6, 0, 20, 0, 25, 27, 4, 21, 34, 35, 35, 6, 10, 34, 13, 32, 11, 10, 18,
+                    3, 10, 10, 8, 16, 34, 1, 25, 19, 1, 11, 32, 18, 8, 32, 26, 25, 10, 6, 18, 7,
+                    12,
+                ],
+                rounds_number: FEISTEL_ROUNDS_NUMBER,
+            },
+            // Zcash test vectors
+            // From https://github.com/zcash-hackworks/zcash-test-vectors/blob/master/ff1.py
+            TestVector {
+                aes: AesType::AES256,
+                key: vec![
+                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
+                    0xCF, 0x4F, 0x3C, 0xEF, 0x43, 0x59, 0xD8, 0xD5, 0x80, 0xAA, 0x4F, 0x7F, 0x03,
+                    0x6D, 0x6F, 0x04, 0xFC, 0x6A, 0x94,
+                ],
+                radix: 2,
+                tweak: vec![],
+                pt: vec![0; 88],
+                ct: vec![
+                    1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1,
+                    0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1,
+                    0, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0,
+                    1, 0, 0, 1, 1, 0, 1, 0, 1, 0,
+                ],
+                rounds_number: FEISTEL_ROUNDS_NUMBER,
+            },
+            TestVector {
+                aes: AesType::AES256,
+                key: vec![
+                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
+                    0xCF, 0x4F, 0x3C, 0xEF, 0x43, 0x59, 0xD8, 0xD5, 0x80, 0xAA, 0x4F, 0x7F, 0x03,
+                    0x6D, 0x6F, 0x04, 0xFC, 0x6A, 0x94,
+                ],
+                radix: 2,
+                tweak: vec![],
+                pt: vec![
+                    0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1,
+                    1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0,
+                    0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1,
+                    0, 0, 1, 1, 0, 0, 1, 1, 1, 1,
+                ],
+                ct: vec![
+                    1, 0, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1,
+                    1, 0, 1, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0,
+                    1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1,
+                    0, 0, 1, 1, 0, 1, 1, 0, 1, 1,
+                ],
+                rounds_number: FEISTEL_ROUNDS_NUMBER,
+            },
+            TestVector {
+                aes: AesType::AES256,
+                key: vec![
+                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
+                    0xCF, 0x4F, 0x3C, 0xEF, 0x43, 0x59, 0xD8, 0xD5, 0x80, 0xAA, 0x4F, 0x7F, 0x03,
+                    0x6D, 0x6F, 0x04, 0xFC, 0x6A, 0x94,
+                ],
+                radix: 2,
+                tweak: vec![],
+                pt: vec![
+                    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
+                    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
+                    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
+                    0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
+                ],
+                ct: vec![
+                    1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0,
+                    1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1,
+                    1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0,
+                    0, 1, 0, 0, 1, 0, 1, 0, 0, 1,
+                ],
+                rounds_number: FEISTEL_ROUNDS_NUMBER,
+            },
+            TestVector {
+                aes: AesType::AES256,
+                key: vec![
+                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
+                    0xCF, 0x4F, 0x3C, 0xEF, 0x43, 0x59, 0xD8, 0xD5, 0x80, 0xAA, 0x4F, 0x7F, 0x03,
+                    0x6D, 0x6F, 0x04, 0xFC, 0x6A, 0x94,
+                ],
+                radix: 2,
+                tweak: vec![
+                    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+                    22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41,
+                    42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61,
+                    62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81,
+                    82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100,
+                    101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116,
+                    117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132,
+                    133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148,
+                    149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164,
+                    165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180,
+                    181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196,
+                    197, 198, 199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212,
+                    213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 227, 228,
+                    229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244,
+                    245, 246, 247, 248, 249, 250, 251, 252, 253, 254,
+                ],
+                pt: vec![
+                    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
+                    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
+                    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
+                    0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
+                ],
+                ct: vec![
+                    1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 0, 1,
+                    0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 1, 0, 0,
+                    1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1, 0,
+                    1, 0, 0, 1, 1, 0, 0, 0, 0, 0,
+                ],
+                rounds_number: FEISTEL_ROUNDS_NUMBER,
             },
         ];
 
@@ -505,22 +795,46 @@ mod tests {
                 AesType::AES128 => {
                     let ff = FF1::<Aes128>::new(&tv.key, tv.radix).unwrap();
                     (
-                        ff.encrypt(&tv.tweak, &FlexibleNumeralString::from(tv.pt.clone())),
-                        ff.decrypt(&tv.tweak, &FlexibleNumeralString::from(tv.ct.clone())),
+                        ff._encrypt(
+                            &tv.tweak,
+                            &FlexibleNumeralString::from(tv.pt.clone()),
+                            tv.rounds_number,
+                        ),
+                        ff._decrypt(
+                            &tv.tweak,
+                            &FlexibleNumeralString::from(tv.ct.clone()),
+                            tv.rounds_number,
+                        ),
                     )
                 }
                 AesType::AES192 => {
                     let ff = FF1::<Aes192>::new(&tv.key, tv.radix).unwrap();
                     (
-                        ff.encrypt(&tv.tweak, &FlexibleNumeralString::from(tv.pt.clone())),
-                        ff.decrypt(&tv.tweak, &FlexibleNumeralString::from(tv.ct.clone())),
+                        ff._encrypt(
+                            &tv.tweak,
+                            &FlexibleNumeralString::from(tv.pt.clone()),
+                            tv.rounds_number,
+                        ),
+                        ff._decrypt(
+                            &tv.tweak,
+                            &FlexibleNumeralString::from(tv.ct.clone()),
+                            tv.rounds_number,
+                        ),
                     )
                 }
                 AesType::AES256 => {
                     let ff = FF1::<Aes256>::new(&tv.key, tv.radix).unwrap();
                     (
-                        ff.encrypt(&tv.tweak, &FlexibleNumeralString::from(tv.pt.clone())),
-                        ff.decrypt(&tv.tweak, &FlexibleNumeralString::from(tv.ct.clone())),
+                        ff._encrypt(
+                            &tv.tweak,
+                            &FlexibleNumeralString::from(tv.pt.clone()),
+                            tv.rounds_number,
+                        ),
+                        ff._decrypt(
+                            &tv.tweak,
+                            &FlexibleNumeralString::from(tv.ct.clone()),
+                            tv.rounds_number,
+                        ),
                     )
                 }
             };
@@ -539,6 +853,7 @@ mod tests {
             ct: Vec<u8>,
             bpt: Vec<u8>,
             bct: Vec<u8>,
+            rounds_number: u8,
         }
 
         let test_vectors = vec![
@@ -564,6 +879,7 @@ mod tests {
                 bct: vec![
                     0x90, 0xac, 0xee, 0x3f, 0x83, 0xcd, 0xe7, 0xae, 0x56, 0x22, 0xf3,
                 ],
+                rounds_number: ORIGINAL_FEISTEL_ROUNDS_NUMBER,
             },
             TestVector {
                 key: vec![
@@ -591,6 +907,55 @@ mod tests {
                 bct: vec![
                     0x5b, 0x8b, 0xf1, 0x20, 0xf3, 0x9b, 0xab, 0x85, 0x27, 0xea, 0x1b,
                 ],
+                rounds_number: ORIGINAL_FEISTEL_ROUNDS_NUMBER,
+            },
+            // Cosmian test vectors
+            TestVector {
+                key: vec![
+                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
+                    0xCF, 0x4F, 0x3C, 0xEF, 0x43, 0x59, 0xD8, 0xD5, 0x80, 0xAA, 0x4F, 0x7F, 0x03,
+                    0x6D, 0x6F, 0x04, 0xFC, 0x6A, 0x94,
+                ],
+                radix: 2,
+                tweak: vec![],
+                pt: vec![0; 88],
+                ct: vec![
+                    1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1,
+                    0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1,
+                    0, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0,
+                    1, 0, 0, 1, 1, 0, 1, 0, 1, 0,
+                ],
+                bpt: vec![
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                ],
+                bct: vec![185, 183, 187, 243, 237, 223, 203, 218, 20, 84, 86],
+                rounds_number: FEISTEL_ROUNDS_NUMBER,
+            },
+            TestVector {
+                key: vec![
+                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
+                    0xCF, 0x4F, 0x3C, 0xEF, 0x43, 0x59, 0xD8, 0xD5, 0x80, 0xAA, 0x4F, 0x7F, 0x03,
+                    0x6D, 0x6F, 0x04, 0xFC, 0x6A, 0x94,
+                ],
+                radix: 2,
+                tweak: vec![],
+                pt: vec![
+                    0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1,
+                    1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0,
+                    0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1,
+                    0, 0, 1, 1, 0, 0, 1, 1, 1, 1,
+                ],
+                ct: vec![
+                    1, 0, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1,
+                    1, 0, 1, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0,
+                    1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1,
+                    0, 0, 1, 1, 0, 1, 1, 0, 1, 1,
+                ],
+                bpt: vec![
+                    0x90, 0xac, 0xee, 0x3f, 0x83, 0xcd, 0xe7, 0xae, 0x56, 0x22, 0xf3,
+                ],
+                bct: vec![233, 54, 126, 87, 126, 204, 112, 226, 235, 55, 219],
+                rounds_number: FEISTEL_ROUNDS_NUMBER,
             },
         ];
 
@@ -598,14 +963,30 @@ mod tests {
             let (ct, pt, bct, bpt) = {
                 let ff = FF1::<Aes256>::new(&tv.key, tv.radix).unwrap();
                 (
-                    ff.encrypt(&tv.tweak, &BinaryNumeralString(tv.pt.clone()))
-                        .unwrap(),
-                    ff.decrypt(&tv.tweak, &BinaryNumeralString(tv.ct.clone()))
-                        .unwrap(),
-                    ff.encrypt(&tv.tweak, &BinaryNumeralString::from_bytes_le(&tv.bpt))
-                        .unwrap(),
-                    ff.decrypt(&tv.tweak, &BinaryNumeralString::from_bytes_le(&tv.bct))
-                        .unwrap(),
+                    ff._encrypt(
+                        &tv.tweak,
+                        &BinaryNumeralString(tv.pt.clone()),
+                        tv.rounds_number,
+                    )
+                    .unwrap(),
+                    ff._decrypt(
+                        &tv.tweak,
+                        &BinaryNumeralString(tv.ct.clone()),
+                        tv.rounds_number,
+                    )
+                    .unwrap(),
+                    ff._encrypt(
+                        &tv.tweak,
+                        &BinaryNumeralString::from_bytes_le(&tv.bpt),
+                        tv.rounds_number,
+                    )
+                    .unwrap(),
+                    ff._decrypt(
+                        &tv.tweak,
+                        &BinaryNumeralString::from_bytes_le(&tv.bct),
+                        tv.rounds_number,
+                    )
+                    .unwrap(),
                 )
             };
             assert_eq!(pt.to_bytes_le(), tv.bpt);

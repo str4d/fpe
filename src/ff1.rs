@@ -114,6 +114,12 @@ pub trait NumeralString: Sized {
     fn str_radix(x: Self::Num, radix: u32, m: usize) -> Self;
 }
 
+/// Original Feistel rounds number
+pub const ORIGINAL_FEISTEL_ROUNDS_NUMBER: u8 = 10;
+/// Increased Feistel rounds number due to FF1 attack
+/// https://eprint.iacr.org/2020/1311.pdf
+pub const FEISTEL_ROUNDS_NUMBER: u8 = 18;
+
 #[derive(Clone)]
 struct Prf<CIPH: BlockEncrypt + BlockDecrypt> {
     state: Cbc<CIPH, NoPadding>,
@@ -192,8 +198,20 @@ impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
     /// Encrypts the given numeral string.
     ///
     /// Returns an error if the numeral string is not in the required radix.
-    #[allow(clippy::many_single_char_names)]
     pub fn encrypt<NS: NumeralString>(&self, tweak: &[u8], x: &NS) -> Result<NS, ()> {
+        self._encrypt(tweak, x, FEISTEL_ROUNDS_NUMBER)
+    }
+
+    /// Internal function. Encrypts the given numeral string with given Feistel rounds number.
+    ///
+    /// Returns an error if the numeral string is not in the required radix.
+    #[allow(clippy::many_single_char_names)]
+    fn _encrypt<NS: NumeralString>(
+        &self,
+        tweak: &[u8],
+        x: &NS,
+        rounds_number: u8,
+    ) -> Result<NS, ()> {
         if !x.is_valid(self.radix.to_u32()) {
             return Err(());
         }
@@ -228,7 +246,7 @@ impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
         for _ in 0..((((-(t as i32) - (b as i32) - 1) % 16) + 16) % 16) {
             prf.update(&[0]);
         }
-        for i in 0..10 {
+        for i in 0..rounds_number {
             let mut prf = prf.clone();
             prf.update(&[i]);
             prf.update(x_b.num_radix(self.radix.to_u32()).to_bytes(b).as_ref());
@@ -267,6 +285,18 @@ impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
     /// Returns an error if the numeral string is not in the required radix.
     #[allow(clippy::many_single_char_names)]
     pub fn decrypt<NS: NumeralString>(&self, tweak: &[u8], x: &NS) -> Result<NS, ()> {
+        self._decrypt(tweak, x, FEISTEL_ROUNDS_NUMBER)
+    }
+    /// Internal function. Decrypts the given numeral string with given Feistel rounds number.
+    ///
+    /// Returns an error if the numeral string is not in the required radix.
+    #[allow(clippy::many_single_char_names)]
+    fn _decrypt<NS: NumeralString>(
+        &self,
+        tweak: &[u8],
+        x: &NS,
+        rounds_number: u8,
+    ) -> Result<NS, ()> {
         if !x.is_valid(self.radix.to_u32()) {
             return Err(());
         }
@@ -301,8 +331,8 @@ impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
         for _ in 0..((((-(t as i32) - (b as i32) - 1) % 16) + 16) % 16) {
             prf.update(&[0]);
         }
-        for i in 0..10 {
-            let i = 9 - i;
+        for i in 0..rounds_number {
+            let i = rounds_number - 1 - i;
             let mut prf = prf.clone();
             prf.update(&[i]);
             prf.update(x_a.num_radix(self.radix.to_u32()).to_bytes(b).as_ref());
