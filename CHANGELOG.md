@@ -7,6 +7,12 @@ and this library adheres to Rust's notion of
 
 ## [Unreleased]
 
+## [0.5.1] - 2021-10-27
+### Fixed
+- Disabled the `num-bigint`, `num-integer`, and `num-traits` default features.
+  These dependencies are behind the `alloc` feature flag, but some of their
+  default features depend on `std`.
+
 ## [0.5.0] - 2021-07-31
 ### Added
 - `no-std` support.
