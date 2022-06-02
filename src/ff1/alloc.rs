@@ -503,21 +503,21 @@ mod tests {
         for tv in test_vectors {
             let (ct, pt) = match tv.aes {
                 AesType::AES128 => {
-                    let ff = FF1::<Aes128>::new(&tv.key, tv.radix).unwrap();
+                    let ff = FF1::<Aes128>::new(&tv.key, tv.radix, 10).unwrap();
                     (
                         ff.encrypt(&tv.tweak, &FlexibleNumeralString::from(tv.pt.clone())),
                         ff.decrypt(&tv.tweak, &FlexibleNumeralString::from(tv.ct.clone())),
                     )
                 }
                 AesType::AES192 => {
-                    let ff = FF1::<Aes192>::new(&tv.key, tv.radix).unwrap();
+                    let ff = FF1::<Aes192>::new(&tv.key, tv.radix, 10).unwrap();
                     (
                         ff.encrypt(&tv.tweak, &FlexibleNumeralString::from(tv.pt.clone())),
                         ff.decrypt(&tv.tweak, &FlexibleNumeralString::from(tv.ct.clone())),
                     )
                 }
                 AesType::AES256 => {
-                    let ff = FF1::<Aes256>::new(&tv.key, tv.radix).unwrap();
+                    let ff = FF1::<Aes256>::new(&tv.key, tv.radix, 10).unwrap();
                     (
                         ff.encrypt(&tv.tweak, &FlexibleNumeralString::from(tv.pt.clone())),
                         ff.decrypt(&tv.tweak, &FlexibleNumeralString::from(tv.ct.clone())),
@@ -596,7 +596,7 @@ mod tests {
 
         for tv in test_vectors {
             let (ct, pt, bct, bpt) = {
-                let ff = FF1::<Aes256>::new(&tv.key, tv.radix).unwrap();
+                let ff = FF1::<Aes256>::new(&tv.key, tv.radix, 10).unwrap();
                 (
                     ff.encrypt(&tv.tweak, &BinaryNumeralString(tv.pt.clone()))
                         .unwrap(),

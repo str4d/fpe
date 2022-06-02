@@ -177,16 +177,21 @@ fn generate_s<'a, CIPH: BlockEncrypt>(
 pub struct FF1<CIPH: BlockCipher> {
     ciph: CIPH,
     radix: Radix,
+    rounds: u8,
 }
 
 impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
     /// Creates a new FF1 object for the given key and radix.
     ///
     /// Returns an error if the given radix is not in [2..2^16].
-    pub fn new(key: &[u8], radix: u32) -> Result<Self, ()> {
+    pub fn new(key: &[u8], radix: u32, rounds: u8) -> Result<Self, ()> {
         let ciph = CIPH::new(GenericArray::from_slice(key));
         let radix = Radix::from(radix)?;
-        Ok(FF1 { ciph, radix })
+        Ok(FF1 {
+            ciph,
+            radix,
+            rounds,
+        })
     }
 
     /// Encrypts the given numeral string.
@@ -228,7 +233,7 @@ impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
         for _ in 0..((((-(t as i32) - (b as i32) - 1) % 16) + 16) % 16) {
             prf.update(&[0]);
         }
-        for i in 0..10 {
+        for i in 0..self.rounds {
             let mut prf = prf.clone();
             prf.update(&[i]);
             prf.update(x_b.num_radix(self.radix.to_u32()).to_bytes(b).as_ref());
@@ -301,8 +306,8 @@ impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
         for _ in 0..((((-(t as i32) - (b as i32) - 1) % 16) + 16) % 16) {
             prf.update(&[0]);
         }
-        for i in 0..10 {
-            let i = 9 - i;
+        for i in 0..self.rounds {
+            let i = (self.rounds - 1) - i;
             let mut prf = prf.clone();
             prf.update(&[i]);
             prf.update(x_a.num_radix(self.radix.to_u32()).to_bytes(b).as_ref());
@@ -340,7 +345,8 @@ impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
 #[cfg(test)]
 mod tests {
     use super::Radix;
-
+    use super::{BinaryNumeralString, FF1};
+    use aes::Aes256;
     #[test]
     fn radix() {
         assert_eq!(Radix::from(1), Err(()));
@@ -385,5 +391,32 @@ mod tests {
             })
         );
         assert_eq!(Radix::from(65537), Err(()));
+    }
+    #[test]
+    fn ff1_with_rounds() {
+        let num_rounds = 10;
+        let bytes = vec![7; 1000];
+        let key: [u8; 32] = [
+            0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09, 0xCF,
+            0x4F, 0x3C, 0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88,
+            0x09, 0xCF, 0x4F, 0x3C,
+        ];
+
+        let fpe_ff = FF1::<Aes256>::new(&key, 2, num_rounds).unwrap();
+
+        let encrypted = fpe_ff
+            .encrypt(&[], &BinaryNumeralString::from_bytes_le(&bytes[..24]))
+            .unwrap();
+        let decrypted = fpe_ff.decrypt(&[], &encrypted).unwrap();
+        assert_eq!(bytes[..24], decrypted.to_bytes_le());
+
+        let num_rounds = 18;
+        let fpe_ff = FF1::<Aes256>::new(&key, 2, num_rounds).unwrap();
+
+        let encrypted = fpe_ff
+            .encrypt(&[], &BinaryNumeralString::from_bytes_le(&bytes[..24]))
+            .unwrap();
+        let decrypted = fpe_ff.decrypt(&[], &encrypted).unwrap();
+        assert_eq!(bytes[..24], decrypted.to_bytes_le());
     }
 }
