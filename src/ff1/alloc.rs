@@ -596,7 +596,7 @@ mod tests {
 
         for tv in test_vectors {
             let (ct, pt, bct, bpt) = {
-                let ff = FF1::<Aes256>::new(&tv.key, tv.radix, 10).unwrap();
+                let ff = FF1::<Aes256>::new(&tv.key, tv.radix).unwrap();
                 (
                     ff.encrypt(&tv.tweak, &BinaryNumeralString(tv.pt.clone()))
                         .unwrap(),

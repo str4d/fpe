@@ -184,7 +184,20 @@ impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
     /// Creates a new FF1 object for the given key and radix.
     ///
     /// Returns an error if the given radix is not in [2..2^16].
-    pub fn new(key: &[u8], radix: u32, rounds: u8) -> Result<Self, ()> {
+    pub fn new(key: &[u8], radix: u32) -> Result<Self, ()> {
+        let ciph = CIPH::new(GenericArray::from_slice(key));
+        let radix = Radix::from(radix)?;
+        Ok(FF1 {
+            ciph,
+            radix,
+            rounds: 10,
+        })
+    }
+
+    /// Creates a new FF1 object for the given key and radix and number of rounds
+    ///
+    /// Returns an error if the given radix is not in [2..2^16].
+    pub fn with_rounds(key: &[u8], radix: u32, rounds: u8) -> Result<Self, ()> {
         let ciph = CIPH::new(GenericArray::from_slice(key));
         let radix = Radix::from(radix)?;
         Ok(FF1 {
@@ -402,7 +415,7 @@ mod tests {
             0x09, 0xCF, 0x4F, 0x3C,
         ];
 
-        let fpe_ff = FF1::<Aes256>::new(&key, 2, num_rounds).unwrap();
+        let fpe_ff = FF1::<Aes256>::with_rounds(&key, 2, num_rounds).unwrap();
 
         let encrypted = fpe_ff
             .encrypt(&[], &BinaryNumeralString::from_bytes_le(&bytes[..24]))
@@ -411,7 +424,7 @@ mod tests {
         assert_eq!(bytes[..24], decrypted.to_bytes_le());
 
         let num_rounds = 18;
-        let fpe_ff = FF1::<Aes256>::new(&key, 2, num_rounds).unwrap();
+        let fpe_ff = FF1::<Aes256>::with_rounds(&key, 2, num_rounds).unwrap();
 
         let encrypted = fpe_ff
             .encrypt(&[], &BinaryNumeralString::from_bytes_le(&bytes[..24]))
