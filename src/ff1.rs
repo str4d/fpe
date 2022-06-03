@@ -176,43 +176,33 @@ fn generate_s<'a, CIPH: BlockEncrypt>(
 /// A struct for performing FF1 encryption and decryption operations.
 pub struct FF1<CIPH: BlockCipher> {
     ciph: CIPH,
-    radix: Radix,
-    rounds: u8,
+    //radix: Radix,
+    //rounds: u8,
 }
 
 impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
     /// Creates a new FF1 object for the given key and radix.
     ///
     /// Returns an error if the given radix is not in [2..2^16].
-    pub fn new(key: &[u8], radix: u32) -> Result<Self, ()> {
+    pub fn new(key: &[u8]) -> Result<Self, ()> {
         let ciph = CIPH::new(GenericArray::from_slice(key));
-        let radix = Radix::from(radix)?;
-        Ok(FF1 {
-            ciph,
-            radix,
-            rounds: 10,
-        })
-    }
-
-    /// Creates a new FF1 object for the given key and radix and number of rounds
-    ///
-    /// Returns an error if the given radix is not in [2..2^16].
-    pub fn with_rounds(key: &[u8], radix: u32, rounds: u8) -> Result<Self, ()> {
-        let ciph = CIPH::new(GenericArray::from_slice(key));
-        let radix = Radix::from(radix)?;
-        Ok(FF1 {
-            ciph,
-            radix,
-            rounds,
-        })
+        Ok(FF1 { ciph })
     }
 
     /// Encrypts the given numeral string.
     ///
     /// Returns an error if the numeral string is not in the required radix.
     #[allow(clippy::many_single_char_names)]
-    pub fn encrypt<NS: NumeralString>(&self, tweak: &[u8], x: &NS) -> Result<NS, ()> {
-        if !x.is_valid(self.radix.to_u32()) {
+    pub fn encrypt<NS: NumeralString>(
+        &self,
+        tweak: &[u8],
+        x: &NS,
+        radix: u32,
+        rounds: u8,
+    ) -> Result<NS, ()> {
+        let radix = Radix::from(radix)?;
+        let radix_u32 = radix.to_u32();
+        if !x.is_valid(radix_u32) {
             return Err(());
         }
 
@@ -227,14 +217,14 @@ impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
         let (mut x_a, mut x_b) = x.split(u);
 
         // 3. Let b = ceil(ceil(v * log2(radix)) / 8).
-        let b = self.radix.calculate_b(v);
+        let b = radix.calculate_b(v);
 
         // 4. Let d = 4 * ceil(b / 4) + 4.
         let d = 4 * ((b + 3) / 4) + 4;
 
         // 5. Let P = [1, 2, 1] || [radix] || [10] || [u mod 256] || [n] || [t].
         let mut p = [1, 2, 1, 0, 0, 0, 10, u as u8, 0, 0, 0, 0, 0, 0, 0, 0];
-        p[3..6].copy_from_slice(&self.radix.to_u32().to_be_bytes()[1..]);
+        p[3..6].copy_from_slice(&radix_u32.to_be_bytes()[1..]);
         p[8..12].copy_from_slice(&(n as u32).to_be_bytes());
         p[12..16].copy_from_slice(&(t as u32).to_be_bytes());
 
@@ -246,10 +236,10 @@ impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
         for _ in 0..((((-(t as i32) - (b as i32) - 1) % 16) + 16) % 16) {
             prf.update(&[0]);
         }
-        for i in 0..self.rounds {
+        for i in 0..rounds {
             let mut prf = prf.clone();
             prf.update(&[i]);
-            prf.update(x_b.num_radix(self.radix.to_u32()).to_bytes(b).as_ref());
+            prf.update(x_b.num_radix(radix_u32).to_bytes(b).as_ref());
             let r = prf.output();
 
             // 6iii. Let S be the first d bytes of R.
@@ -262,12 +252,10 @@ impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
             let m = if i % 2 == 0 { u } else { v };
 
             // 6vi. Let c = (NUM(A, radix) + y) mod radix^m.
-            let c = x_a
-                .num_radix(self.radix.to_u32())
-                .add_mod_exp(y, self.radix.to_u32(), m);
+            let c = x_a.num_radix(radix_u32).add_mod_exp(y, radix_u32, m);
 
             // 6vii. Let C = STR(c, radix).
-            let x_c = NS::str_radix(c, self.radix.to_u32(), m);
+            let x_c = NS::str_radix(c, radix_u32, m);
 
             // 6viii. Let A = B.
             x_a = x_b;
@@ -284,8 +272,16 @@ impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
     ///
     /// Returns an error if the numeral string is not in the required radix.
     #[allow(clippy::many_single_char_names)]
-    pub fn decrypt<NS: NumeralString>(&self, tweak: &[u8], x: &NS) -> Result<NS, ()> {
-        if !x.is_valid(self.radix.to_u32()) {
+    pub fn decrypt<NS: NumeralString>(
+        &self,
+        tweak: &[u8],
+        x: &NS,
+        radix: u32,
+        rounds: u8,
+    ) -> Result<NS, ()> {
+        let radix = Radix::from(radix)?;
+        let radix_u32 = radix.to_u32();
+        if !x.is_valid(radix_u32) {
             return Err(());
         }
 
@@ -300,14 +296,14 @@ impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
         let (mut x_a, mut x_b) = x.split(u);
 
         // 3. Let b = ceil(ceil(v * log2(radix)) / 8).
-        let b = self.radix.calculate_b(v);
+        let b = radix.calculate_b(v);
 
         // 4. Let d = 4 * ceil(b / 4) + 4.
         let d = 4 * ((b + 3) / 4) + 4;
 
         // 5. Let P = [1, 2, 1] || [radix] || [10] || [u mod 256] || [n] || [t].
         let mut p = [1, 2, 1, 0, 0, 0, 10, u as u8, 0, 0, 0, 0, 0, 0, 0, 0];
-        p[3..6].copy_from_slice(&self.radix.to_u32().to_be_bytes()[1..]);
+        p[3..6].copy_from_slice(&radix_u32.to_be_bytes()[1..]);
         p[8..12].copy_from_slice(&(n as u32).to_be_bytes());
         p[12..16].copy_from_slice(&(t as u32).to_be_bytes());
 
@@ -319,11 +315,11 @@ impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
         for _ in 0..((((-(t as i32) - (b as i32) - 1) % 16) + 16) % 16) {
             prf.update(&[0]);
         }
-        for i in 0..self.rounds {
-            let i = (self.rounds - 1) - i;
+        for i in 0..rounds {
+            let i = (rounds - 1) - i;
             let mut prf = prf.clone();
             prf.update(&[i]);
-            prf.update(x_a.num_radix(self.radix.to_u32()).to_bytes(b).as_ref());
+            prf.update(x_a.num_radix(radix_u32).to_bytes(b).as_ref());
             let r = prf.output();
 
             // 6iii. Let S be the first d bytes of R.
@@ -336,12 +332,10 @@ impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
             let m = if i % 2 == 0 { u } else { v };
 
             // 6vi. Let c = (NUM(B, radix) - y) mod radix^m.
-            let c = x_b
-                .num_radix(self.radix.to_u32())
-                .sub_mod_exp(y, self.radix.to_u32(), m);
+            let c = x_b.num_radix(radix_u32).sub_mod_exp(y, radix_u32, m);
 
             // 6vii. Let C = STR(c, radix).
-            let x_c = NS::str_radix(c, self.radix.to_u32(), m);
+            let x_c = NS::str_radix(c, radix_u32, m);
 
             // 6viii. Let B = A.
             x_b = x_a;
@@ -407,7 +401,8 @@ mod tests {
     }
     #[test]
     fn ff1_with_rounds() {
-        let num_rounds = 10;
+        let num_rounds: u8 = 10;
+        let radix: u32 = 10;
         let bytes = vec![7; 1000];
         let key: [u8; 32] = [
             0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09, 0xCF,
@@ -415,21 +410,31 @@ mod tests {
             0x09, 0xCF, 0x4F, 0x3C,
         ];
 
-        let fpe_ff = FF1::<Aes256>::with_rounds(&key, 2, num_rounds).unwrap();
+        let fpe_ff = FF1::<Aes256>::new(&key).unwrap();
 
         let encrypted = fpe_ff
-            .encrypt(&[], &BinaryNumeralString::from_bytes_le(&bytes[..24]))
+            .encrypt(
+                &[],
+                &BinaryNumeralString::from_bytes_le(&bytes[..24]),
+                radix,
+                num_rounds,
+            )
             .unwrap();
-        let decrypted = fpe_ff.decrypt(&[], &encrypted).unwrap();
+        let decrypted = fpe_ff.decrypt(&[], &encrypted, radix, num_rounds).unwrap();
         assert_eq!(bytes[..24], decrypted.to_bytes_le());
 
-        let num_rounds = 18;
-        let fpe_ff = FF1::<Aes256>::with_rounds(&key, 2, num_rounds).unwrap();
+        let num_rounds = 1;
+        let fpe_ff = FF1::<Aes256>::new(&key).unwrap();
 
         let encrypted = fpe_ff
-            .encrypt(&[], &BinaryNumeralString::from_bytes_le(&bytes[..24]))
+            .encrypt(
+                &[],
+                &BinaryNumeralString::from_bytes_le(&bytes[..24]),
+                radix,
+                num_rounds,
+            )
             .unwrap();
-        let decrypted = fpe_ff.decrypt(&[], &encrypted).unwrap();
+        let decrypted = fpe_ff.decrypt(&[], &encrypted, radix, num_rounds).unwrap();
         assert_eq!(bytes[..24], decrypted.to_bytes_le());
     }
 }
