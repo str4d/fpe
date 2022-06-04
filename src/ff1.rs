@@ -176,17 +176,21 @@ fn generate_s<'a, CIPH: BlockEncrypt>(
 /// A struct for performing FF1 encryption and decryption operations.
 pub struct FF1<CIPH: BlockCipher> {
     ciph: CIPH,
-    //radix: Radix,
-    //rounds: u8,
+    radix: u32,
+    rounds: u8,
 }
 
 impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
     /// Creates a new FF1 object for the given key and radix.
     ///
     /// Returns an error if the given radix is not in [2..2^16].
-    pub fn new(key: &[u8]) -> Result<Self, ()> {
+    pub fn new(key: &[u8], radix: u32) -> Result<Self, ()> {
         let ciph = CIPH::new(GenericArray::from_slice(key));
-        Ok(FF1 { ciph })
+        Ok(FF1 {
+            ciph,
+            radix,
+            rounds: 10,
+        })
     }
 
     /// create cipher
@@ -199,14 +203,8 @@ impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
     ///
     /// Returns an error if the numeral string is not in the required radix.
     #[allow(clippy::many_single_char_names)]
-    pub fn encrypt<NS: NumeralString>(
-        &self,
-        tweak: &[u8],
-        x: &NS,
-        radix: u32,
-        rounds: u8,
-    ) -> Result<NS, ()> {
-        FF1::encrypt_with_cipher(&self.ciph, tweak, x, radix, rounds)
+    pub fn encrypt<NS: NumeralString>(&self, tweak: &[u8], x: &NS) -> Result<NS, ()> {
+        FF1::encrypt_with_cipher(&self.ciph, tweak, x, self.radix, self.rounds)
     }
 
     /// Encrypts the given numeral string.
@@ -292,14 +290,8 @@ impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
     ///
     /// Returns an error if the numeral string is not in the required radix.
     #[allow(clippy::many_single_char_names)]
-    pub fn decrypt<NS: NumeralString>(
-        &self,
-        tweak: &[u8],
-        x: &NS,
-        radix: u32,
-        rounds: u8,
-    ) -> Result<NS, ()> {
-        FF1::decrypt_with_cipher(&self.ciph, tweak, x, radix, rounds)
+    pub fn decrypt<NS: NumeralString>(&self, tweak: &[u8], x: &NS) -> Result<NS, ()> {
+        FF1::decrypt_with_cipher(&self.ciph, tweak, x, self.radix, self.rounds)
     }
 
     /// Decrypts the given numeral string.
@@ -386,7 +378,7 @@ impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
 #[cfg(test)]
 mod tests {
     use super::Radix;
-    use super::{BinaryNumeralString, FF1};
+    use super::{BinaryNumeralString, FlexibleNumeralString, FF1};
     use aes::Aes256;
     #[test]
     fn radix() {
@@ -435,8 +427,7 @@ mod tests {
     }
     #[test]
     fn ff1_with_rounds() {
-        let num_rounds: u8 = 10;
-        let radix: u32 = 10;
+        let radix: u32 = 2;
         let bytes = vec![7; 1000];
         let key: [u8; 32] = [
             0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09, 0xCF,
@@ -444,38 +435,27 @@ mod tests {
             0x09, 0xCF, 0x4F, 0x3C,
         ];
 
-        let fpe_ff = FF1::<Aes256>::new(&key).unwrap();
+        let fpe_ff = FF1::<Aes256>::new(&key, radix).unwrap();
 
         let encrypted = fpe_ff
-            .encrypt(
-                &[],
-                &BinaryNumeralString::from_bytes_le(&bytes[..24]),
-                radix,
-                num_rounds,
-            )
+            .encrypt(&[], &BinaryNumeralString::from_bytes_le(&bytes[..24]))
             .unwrap();
-        let decrypted = fpe_ff.decrypt(&[], &encrypted, radix, num_rounds).unwrap();
+        let decrypted = fpe_ff.decrypt(&[], &encrypted).unwrap();
         assert_eq!(bytes[..24], decrypted.to_bytes_le());
 
-        let num_rounds = 1;
-        let fpe_ff = FF1::<Aes256>::new(&key).unwrap();
+        let fpe_ff = FF1::<Aes256>::new(&key, radix).unwrap();
 
         let encrypted = fpe_ff
-            .encrypt(
-                &[],
-                &BinaryNumeralString::from_bytes_le(&bytes[..24]),
-                radix,
-                num_rounds,
-            )
+            .encrypt(&[], &BinaryNumeralString::from_bytes_le(&bytes[..24]))
             .unwrap();
-        let decrypted = fpe_ff.decrypt(&[], &encrypted, radix, num_rounds).unwrap();
+        let decrypted = fpe_ff.decrypt(&[], &encrypted).unwrap();
         assert_eq!(bytes[..24], decrypted.to_bytes_le());
     }
 
     #[test]
     fn ff1_generic() {
         let num_rounds: u8 = 10;
-        let radix: u32 = 10;
+        let radix: u32 = 2;
         let bytes = vec![7; 1000];
         let key: [u8; 32] = [
             0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09, 0xCF,
@@ -493,22 +473,23 @@ mod tests {
             num_rounds,
         )
         .unwrap();
+
         let decrypted =
             FF1::decrypt_with_cipher(&cipher, &[], &encrypted, radix, num_rounds).unwrap();
         assert_eq!(bytes[..24], decrypted.to_bytes_le());
 
-        let num_rounds = 1;
-        let fpe_ff = FF1::<Aes256>::new(&key).unwrap();
+        let fpe_ff = FF1::<Aes256>::new(&key, 2).unwrap();
 
+        let payload = vec![
+            0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0,
+            1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1,
+            0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0,
+            1,
+        ];
         let encrypted = fpe_ff
-            .encrypt(
-                &[],
-                &BinaryNumeralString::from_bytes_le(&bytes[..24]),
-                radix,
-                num_rounds,
-            )
+            .encrypt(&[], &FlexibleNumeralString::from(payload.clone()))
             .unwrap();
-        let decrypted = fpe_ff.decrypt(&[], &encrypted, radix, num_rounds).unwrap();
-        assert_eq!(bytes[..24], decrypted.to_bytes_le());
+        let decrypted = fpe_ff.decrypt(&[], &encrypted).unwrap();
+        assert_eq!(payload, Vec::from(decrypted));
     }
 }
