@@ -200,6 +200,20 @@ impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
         radix: u32,
         rounds: u8,
     ) -> Result<NS, ()> {
+        FF1::encrypt_with_cipher(&self.ciph, tweak, x, radix, rounds)
+    }
+
+    /// Encrypts the given numeral string.
+    ///
+    /// Returns an error if the numeral string is not in the required radix.
+    #[allow(clippy::many_single_char_names)]
+    pub fn encrypt_with_cipher<NS: NumeralString>(
+        ciph: &CIPH,
+        tweak: &[u8],
+        x: &NS,
+        radix: u32,
+        rounds: u8,
+    ) -> Result<NS, ()> {
         let radix = Radix::from(radix)?;
         let radix_u32 = radix.to_u32();
         if !x.is_valid(radix_u32) {
@@ -230,7 +244,7 @@ impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
 
         //  6i. Let Q = T || [0]^((-t-b-1) mod 16) || [i] || [NUM(B, radix)].
         // 6ii. Let R = PRF(P || Q).
-        let mut prf = Prf::new(&self.ciph);
+        let mut prf = Prf::new(&ciph);
         prf.update(&p);
         prf.update(tweak);
         for _ in 0..((((-(t as i32) - (b as i32) - 1) % 16) + 16) % 16) {
@@ -243,7 +257,7 @@ impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
             let r = prf.output();
 
             // 6iii. Let S be the first d bytes of R.
-            let s = generate_s(&self.ciph, r, d);
+            let s = generate_s(&ciph, r, d);
 
             // 6iv. Let y = NUM(S).
             let y = NS::Num::from_bytes(s);
@@ -279,6 +293,20 @@ impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
         radix: u32,
         rounds: u8,
     ) -> Result<NS, ()> {
+        FF1::decrypt_with_cipher(&self.ciph, tweak, x, radix, rounds)
+    }
+
+    /// Decrypts the given numeral string.
+    ///
+    /// Returns an error if the numeral string is not in the required radix.
+    #[allow(clippy::many_single_char_names)]
+    pub fn decrypt_with_cipher<NS: NumeralString>(
+        ciph: &CIPH,
+        tweak: &[u8],
+        x: &NS,
+        radix: u32,
+        rounds: u8,
+    ) -> Result<NS, ()> {
         let radix = Radix::from(radix)?;
         let radix_u32 = radix.to_u32();
         if !x.is_valid(radix_u32) {
@@ -309,7 +337,7 @@ impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
 
         //  6i. Let Q = T || [0]^((-t-b-1) mod 16) || [i] || [NUM(A, radix)].
         // 6ii. Let R = PRF(P || Q).
-        let mut prf = Prf::new(&self.ciph);
+        let mut prf = Prf::new(&ciph);
         prf.update(&p);
         prf.update(tweak);
         for _ in 0..((((-(t as i32) - (b as i32) - 1) % 16) + 16) % 16) {
@@ -323,7 +351,7 @@ impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
             let r = prf.output();
 
             // 6iii. Let S be the first d bytes of R.
-            let s = generate_s(&self.ciph, r, d);
+            let s = generate_s(&ciph, r, d);
 
             // 6iv. Let y = NUM(S).
             let y = NS::Num::from_bytes(s);
