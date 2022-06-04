@@ -189,6 +189,12 @@ impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
         Ok(FF1 { ciph })
     }
 
+    /// create cipher
+    pub fn cipher(key: &[u8]) -> Result<CIPH, ()> {
+        let ciph = CIPH::new(GenericArray::from_slice(key));
+        Ok(ciph)
+    }
+
     /// Encrypts the given numeral string.
     ///
     /// Returns an error if the numeral string is not in the required radix.
@@ -449,6 +455,46 @@ mod tests {
             )
             .unwrap();
         let decrypted = fpe_ff.decrypt(&[], &encrypted, radix, num_rounds).unwrap();
+        assert_eq!(bytes[..24], decrypted.to_bytes_le());
+
+        let num_rounds = 1;
+        let fpe_ff = FF1::<Aes256>::new(&key).unwrap();
+
+        let encrypted = fpe_ff
+            .encrypt(
+                &[],
+                &BinaryNumeralString::from_bytes_le(&bytes[..24]),
+                radix,
+                num_rounds,
+            )
+            .unwrap();
+        let decrypted = fpe_ff.decrypt(&[], &encrypted, radix, num_rounds).unwrap();
+        assert_eq!(bytes[..24], decrypted.to_bytes_le());
+    }
+
+    #[test]
+    fn ff1_generic() {
+        let num_rounds: u8 = 10;
+        let radix: u32 = 10;
+        let bytes = vec![7; 1000];
+        let key: [u8; 32] = [
+            0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09, 0xCF,
+            0x4F, 0x3C, 0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88,
+            0x09, 0xCF, 0x4F, 0x3C,
+        ];
+
+        let cipher = FF1::<Aes256>::cipher(&key).unwrap();
+
+        let encrypted = FF1::encrypt_with_cipher(
+            &cipher,
+            &[],
+            &BinaryNumeralString::from_bytes_le(&bytes[..24]),
+            radix,
+            num_rounds,
+        )
+        .unwrap();
+        let decrypted =
+            FF1::decrypt_with_cipher(&cipher, &[], &encrypted, radix, num_rounds).unwrap();
         assert_eq!(bytes[..24], decrypted.to_bytes_le());
 
         let num_rounds = 1;
