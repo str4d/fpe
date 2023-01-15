@@ -194,7 +194,7 @@ impl BinaryNumeralString {
 }
 
 impl NumeralString for BinaryNumeralString {
-    type Ops = Self;
+    type Ops = BinaryOps;
 
     fn is_valid(&self, radix: u32) -> bool {
         self.0.iter().all(|n| (u32::from(*n) < radix))
@@ -204,19 +204,25 @@ impl NumeralString for BinaryNumeralString {
         self.0.len()
     }
 
-    fn split(&self, u: usize) -> (Self, Self) {
+    fn split(&self, u: usize) -> (Self::Ops, Self::Ops) {
         let mut front = self.0.clone();
         let back = front.split_off(u);
-        (BinaryNumeralString(front), BinaryNumeralString(back))
+        let v = back.len();
+        (BinaryOps::new(front, u), BinaryOps::new(back, v))
     }
 
-    fn concat(mut a: Self, mut b: Self) -> Self {
-        a.0.append(&mut b.0);
-        a
+    fn concat(mut a: Self::Ops, mut b: Self::Ops) -> Self {
+        a.data.append(&mut b.data);
+        BinaryNumeralString(a.data)
     }
 }
 
-impl Operations for BinaryNumeralString {
+pub struct BinaryOps {
+    data: Vec<u8>,
+    num_bits: usize,
+}
+
+impl Operations for BinaryOps {
     type Bytes = Vec<u8>;
 
     fn to_be_bytes(&self, radix: u32, b: usize) -> Self::Bytes {
@@ -224,26 +230,32 @@ impl Operations for BinaryNumeralString {
     }
 
     fn add_mod_exp(self, other: impl Iterator<Item = u8>, radix: u32, m: usize) -> Self {
+        assert_eq!(self.num_bits, m);
         let other = BigUint::from_bytes(other);
         let c = self.num_radix(radix).add_mod_exp(other, radix, m);
         Self::str_radix(c, radix, m)
     }
 
     fn sub_mod_exp(self, other: impl Iterator<Item = u8>, radix: u32, m: usize) -> Self {
+        assert_eq!(self.num_bits, m);
         let other = BigUint::from_bytes(other);
         let c = self.num_radix(radix).sub_mod_exp(other, radix, m);
         Self::str_radix(c, radix, m)
     }
 }
 
-impl BinaryNumeralString {
+impl BinaryOps {
+    fn new(data: Vec<u8>, num_bits: usize) -> Self {
+        BinaryOps { data, num_bits }
+    }
+
     fn num_radix(&self, radix: u32) -> BigUint {
         let zero = BigUint::zero();
         let one = BigUint::one();
         // Check that radix == 2
         assert_eq!(radix, 2);
         let mut res = zero;
-        for i in &self.0 {
+        for i in &self.data {
             res <<= 1;
             if *i != 0 {
                 res += &one;
@@ -262,7 +274,7 @@ impl BinaryNumeralString {
             }
             x >>= 1;
         }
-        BinaryNumeralString(res)
+        BinaryOps::new(res, m)
     }
 }
 
