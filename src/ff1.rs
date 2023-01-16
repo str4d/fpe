@@ -133,6 +133,9 @@ pub trait Operations: Sized {
     /// Type used for byte representations.
     type Bytes: AsRef<[u8]>;
 
+    /// Returns the number of numerals in this numeral sub-string.
+    fn numeral_count(&self) -> usize;
+
     /// Encodes the number that this numeral string represents in the base
     /// radix as a byte string, by valuing the numerals in decreasing order
     /// of significance (big-endian order).
@@ -158,9 +161,9 @@ pub trait NumeralString: Sized {
     /// Returns the number of numerals in this numeral string.
     fn numeral_count(&self) -> usize;
 
-    /// Splits this numeral string into two sections X[..u] and X[u..] that can be used
-    /// for FF1 computations.
-    fn split(&self, u: usize) -> (Self::Ops, Self::Ops);
+    /// Splits this numeral string of length `n` into two sections of lengths
+    /// `u = floor(n / 2)` and `v = n - u` that can be used for FF1 computations.
+    fn split(&self) -> (Self::Ops, Self::Ops);
 
     /// Concatenates two strings used for FF1 computations into a single numeral string.
     fn concat(a: Self::Ops, b: Self::Ops) -> Self;
@@ -261,11 +264,10 @@ impl<CIPH: BlockCipher + BlockEncrypt + Clone> FF1<CIPH> {
         let t = tweak.len();
 
         // 1. Let u = floor(n / 2); v = n - u
-        let u = n / 2;
-        let v = n - u;
-
         // 2. Let A = X[1..u]; B = X[u + 1..n].
-        let (mut x_a, mut x_b) = x.split(u);
+        let (mut x_a, mut x_b) = x.split();
+        let u = x_a.numeral_count();
+        let v = x_b.numeral_count();
 
         // 3. Let b = ceil(ceil(v * log2(radix)) / 8).
         let b = self.radix.calculate_b(v);
@@ -332,11 +334,10 @@ impl<CIPH: BlockCipher + BlockEncrypt + Clone> FF1<CIPH> {
         let t = tweak.len();
 
         // 1. Let u = floor(n / 2); v = n - u
-        let u = n / 2;
-        let v = n - u;
-
         // 2. Let A = X[1..u]; B = X[u + 1..n].
-        let (mut x_a, mut x_b) = x.split(u);
+        let (mut x_a, mut x_b) = x.split();
+        let u = x_a.numeral_count();
+        let v = x_b.numeral_count();
 
         // 3. Let b = ceil(ceil(v * log2(radix)) / 8).
         let b = self.radix.calculate_b(v);

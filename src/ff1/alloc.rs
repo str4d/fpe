@@ -101,9 +101,9 @@ impl NumeralString for FlexibleNumeralString {
         self.0.len()
     }
 
-    fn split(&self, u: usize) -> (Self, Self) {
+    fn split(&self) -> (Self, Self) {
         let mut front = self.0.clone();
-        let back = front.split_off(u);
+        let back = front.split_off(self.0.len() / 2);
         (FlexibleNumeralString(front), FlexibleNumeralString(back))
     }
 
@@ -115,6 +115,10 @@ impl NumeralString for FlexibleNumeralString {
 
 impl Operations for FlexibleNumeralString {
     type Bytes = Vec<u8>;
+
+    fn numeral_count(&self) -> usize {
+        self.0.len()
+    }
 
     fn to_be_bytes(&self, radix: u32, b: usize) -> Self::Bytes {
         self.num_radix(radix).to_bytes(b)
@@ -204,10 +208,12 @@ impl NumeralString for BinaryNumeralString {
         self.0.len()
     }
 
-    fn split(&self, u: usize) -> (Self::Ops, Self::Ops) {
+    fn split(&self) -> (Self::Ops, Self::Ops) {
+        let n = self.numeral_count();
+        let u = n / 2;
+        let v = n - u;
         let mut front = self.0.clone();
         let back = front.split_off(u);
-        let v = back.len();
         (BinaryOps::new(front, u), BinaryOps::new(back, v))
     }
 
@@ -224,6 +230,10 @@ pub struct BinaryOps {
 
 impl Operations for BinaryOps {
     type Bytes = Vec<u8>;
+
+    fn numeral_count(&self) -> usize {
+        self.num_bits
+    }
 
     fn to_be_bytes(&self, radix: u32, b: usize) -> Self::Bytes {
         self.num_radix(radix).to_bytes(b)
@@ -377,13 +387,13 @@ mod tests {
         for tv in test_vectors::get() {
             {
                 let pt = FlexibleNumeralString::from(tv.pt.clone());
-                let (a, b) = pt.split(pt.numeral_count() / 2);
+                let (a, b) = pt.split();
                 assert_eq!(FlexibleNumeralString::concat(a, b).0, tv.pt);
             }
 
             {
                 let ct = FlexibleNumeralString::from(tv.ct.clone());
-                let (a, b) = ct.split(ct.numeral_count() / 2);
+                let (a, b) = ct.split();
                 assert_eq!(FlexibleNumeralString::concat(a, b).0, tv.ct);
             }
         }
@@ -427,13 +437,13 @@ mod tests {
 
             {
                 let pt = BinaryNumeralString::from_bytes_le(&tvb.pt);
-                let (a, b) = pt.split(pt.numeral_count() / 2);
+                let (a, b) = pt.split();
                 assert_eq!(BinaryNumeralString::concat(a, b).to_bytes_le(), tvb.pt);
             }
 
             {
                 let ct = BinaryNumeralString::from_bytes_le(&tvb.ct);
-                let (a, b) = ct.split(ct.numeral_count() / 2);
+                let (a, b) = ct.split();
                 assert_eq!(BinaryNumeralString::concat(a, b).to_bytes_le(), tvb.ct);
             }
         }
