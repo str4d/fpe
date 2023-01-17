@@ -4,6 +4,7 @@ version = "0.5.1"
 authors = ["Jack Grigg <thestr4d@gmail.com>"]
 license = "MIT/Apache-2.0"
 edition = "2018"
+rust-version = "1.56"
 description = "Format-preserving encryption"
 documentation = "https://docs.rs/fpe/"
 homepage = "https://github.com/str4d/fpe"
