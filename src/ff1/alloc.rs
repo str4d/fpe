@@ -223,6 +223,23 @@ mod tests {
     }
 
     #[test]
+    fn flexible_split_round_trip() {
+        for tv in test_vectors::get() {
+            {
+                let pt = FlexibleNumeralString::from(tv.pt.clone());
+                let (a, b) = pt.split(pt.len() / 2);
+                assert_eq!(FlexibleNumeralString::concat(a, b).0, tv.pt);
+            }
+
+            {
+                let ct = FlexibleNumeralString::from(tv.ct.clone());
+                let (a, b) = ct.split(ct.len() / 2);
+                assert_eq!(FlexibleNumeralString::concat(a, b).0, tv.ct);
+            }
+        }
+    }
+
+    #[test]
     fn flexible() {
         for tv in test_vectors::get() {
             let (ct, pt) = match tv.aes {
@@ -250,6 +267,25 @@ mod tests {
             };
             assert_eq!(Vec::from(ct.unwrap()), tv.ct);
             assert_eq!(Vec::from(pt.unwrap()), tv.pt);
+        }
+    }
+
+    #[test]
+    fn binary_split_round_trip() {
+        for tv in test_vectors::get().filter(|tv| tv.binary.is_some()) {
+            let tvb = tv.binary.unwrap();
+
+            {
+                let pt = BinaryNumeralString::from_bytes_le(&tvb.pt);
+                let (a, b) = pt.split(pt.len() / 2);
+                assert_eq!(BinaryNumeralString::concat(a, b).to_bytes_le(), tvb.pt);
+            }
+
+            {
+                let ct = BinaryNumeralString::from_bytes_le(&tvb.ct);
+                let (a, b) = ct.split(ct.len() / 2);
+                assert_eq!(BinaryNumeralString::concat(a, b).to_bytes_le(), tvb.ct);
+            }
         }
     }
 
