@@ -6,6 +6,10 @@ and this library adheres to Rust's notion of
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed
+- MSRV is now 1.56.0.
+- Bumped dependencies to `cipher 0.4`, `cbc 0.1`.
+  - `aes 0.8` is now the minimum compatible crate version.
 
 ## [0.5.1] - 2021-10-27
 ### Fixed

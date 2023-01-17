@@ -3,9 +3,9 @@
 
 use core::cmp;
 
-use block_modes::{block_padding::NoPadding, BlockMode, Cbc};
 use cipher::{
-    generic_array::GenericArray, Block, BlockCipher, BlockDecrypt, BlockEncrypt, NewBlockCipher,
+    generic_array::GenericArray, Block, BlockCipher, BlockEncrypt, BlockEncryptMut, InnerIvInit,
+    KeyInit,
 };
 
 #[cfg(feature = "alloc")]
@@ -118,18 +118,18 @@ pub trait NumeralString: Sized {
 }
 
 #[derive(Clone)]
-struct Prf<CIPH: BlockEncrypt + BlockDecrypt> {
-    state: Cbc<CIPH, NoPadding>,
+struct Prf<CIPH: BlockCipher + BlockEncrypt> {
+    state: cbc::Encryptor<CIPH>,
     // Contains the output when offset = 0, and partial input otherwise
     buf: [Block<CIPH>; 1],
     offset: usize,
 }
 
-impl<CIPH: BlockEncrypt + BlockDecrypt + Clone> Prf<CIPH> {
+impl<CIPH: BlockCipher + BlockEncrypt + Clone> Prf<CIPH> {
     fn new(ciph: &CIPH) -> Self {
         let ciph = ciph.clone();
         Prf {
-            state: Cbc::new(ciph, GenericArray::from_slice(&[0; 16])),
+            state: cbc::Encryptor::inner_iv_init(ciph, GenericArray::from_slice(&[0; 16])),
             buf: [Block::<CIPH>::default()],
             offset: 0,
         }
@@ -143,7 +143,7 @@ impl<CIPH: BlockEncrypt + BlockDecrypt + Clone> Prf<CIPH> {
             data = &data[to_read..];
 
             if self.offset == self.buf[0].len() {
-                self.state.encrypt_blocks(&mut self.buf);
+                self.state.encrypt_blocks_mut(&mut self.buf);
                 self.offset = 0;
             }
         }
@@ -182,7 +182,7 @@ pub struct FF1<CIPH: BlockCipher> {
     radix: Radix,
 }
 
-impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
+impl<CIPH: BlockCipher + KeyInit> FF1<CIPH> {
     /// Creates a new FF1 object for the given key and radix.
     ///
     /// Returns an error if the given radix is not in [2..2^16].
@@ -191,7 +191,9 @@ impl<CIPH: NewBlockCipher + BlockEncrypt + BlockDecrypt + Clone> FF1<CIPH> {
         let radix = Radix::from(radix)?;
         Ok(FF1 { ciph, radix })
     }
+}
 
+impl<CIPH: BlockCipher + BlockEncrypt + Clone> FF1<CIPH> {
     /// Encrypts the given numeral string.
     ///
     /// Returns an error if the numeral string is not in the required radix.
