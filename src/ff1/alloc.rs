@@ -254,92 +254,35 @@ mod tests {
     }
 
     #[test]
-    fn test_vectors_binary() {
-        struct TestVector {
-            key: Vec<u8>,
-            radix: u32,
-            tweak: Vec<u8>,
-            pt: Vec<u8>,
-            ct: Vec<u8>,
-            bpt: Vec<u8>,
-            bct: Vec<u8>,
-        }
+    fn binary() {
+        for tv in test_vectors::get().filter(|tv| tv.binary.is_some()) {
+            assert_eq!(tv.aes, AesType::AES256);
 
-        let test_vectors = vec![
-            // Zcash test vectors
-            TestVector {
-                key: vec![
-                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
-                    0xCF, 0x4F, 0x3C, 0xEF, 0x43, 0x59, 0xD8, 0xD5, 0x80, 0xAA, 0x4F, 0x7F, 0x03,
-                    0x6D, 0x6F, 0x04, 0xFC, 0x6A, 0x94,
-                ],
-                radix: 2,
-                tweak: vec![],
-                pt: vec![0; 88],
-                ct: vec![
-                    0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1,
-                    1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0,
-                    0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1,
-                    0, 0, 1, 1, 0, 0, 1, 1, 1, 1,
-                ],
-                bpt: vec![
-                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                ],
-                bct: vec![
-                    0x90, 0xac, 0xee, 0x3f, 0x83, 0xcd, 0xe7, 0xae, 0x56, 0x22, 0xf3,
-                ],
-            },
-            TestVector {
-                key: vec![
-                    0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09,
-                    0xCF, 0x4F, 0x3C, 0xEF, 0x43, 0x59, 0xD8, 0xD5, 0x80, 0xAA, 0x4F, 0x7F, 0x03,
-                    0x6D, 0x6F, 0x04, 0xFC, 0x6A, 0x94,
-                ],
-                radix: 2,
-                tweak: vec![],
-                pt: vec![
-                    0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1,
-                    1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0,
-                    0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1,
-                    0, 0, 1, 1, 0, 0, 1, 1, 1, 1,
-                ],
-                ct: vec![
-                    1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0,
-                    0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1, 0, 1,
-                    0, 1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1,
-                    1, 1, 1, 1, 0, 1, 1, 0, 0, 0,
-                ],
-                bpt: vec![
-                    0x90, 0xac, 0xee, 0x3f, 0x83, 0xcd, 0xe7, 0xae, 0x56, 0x22, 0xf3,
-                ],
-                bct: vec![
-                    0x5b, 0x8b, 0xf1, 0x20, 0xf3, 0x9b, 0xab, 0x85, 0x27, 0xea, 0x1b,
-                ],
-            },
-        ];
+            let tvpt = tv.pt.iter().map(|b| *b as u8).collect::<Vec<_>>();
+            let tvct = tv.ct.iter().map(|b| *b as u8).collect::<Vec<_>>();
+            let tvb = tv.binary.unwrap();
 
-        for tv in test_vectors {
             let (ct, pt, bct, bpt) = {
                 let ff = FF1::<Aes256>::new(&tv.key, tv.radix).unwrap();
                 (
-                    ff.encrypt(&tv.tweak, &BinaryNumeralString(tv.pt.clone()))
+                    ff.encrypt(&tv.tweak, &BinaryNumeralString(tvpt.clone()))
                         .unwrap(),
-                    ff.decrypt(&tv.tweak, &BinaryNumeralString(tv.ct.clone()))
+                    ff.decrypt(&tv.tweak, &BinaryNumeralString(tvct.clone()))
                         .unwrap(),
-                    ff.encrypt(&tv.tweak, &BinaryNumeralString::from_bytes_le(&tv.bpt))
+                    ff.encrypt(&tv.tweak, &BinaryNumeralString::from_bytes_le(&tvb.pt))
                         .unwrap(),
-                    ff.decrypt(&tv.tweak, &BinaryNumeralString::from_bytes_le(&tv.bct))
+                    ff.decrypt(&tv.tweak, &BinaryNumeralString::from_bytes_le(&tvb.ct))
                         .unwrap(),
                 )
             };
-            assert_eq!(pt.to_bytes_le(), tv.bpt);
-            assert_eq!(ct.to_bytes_le(), tv.bct);
-            assert_eq!(bpt.to_bytes_le(), tv.bpt);
-            assert_eq!(bct.to_bytes_le(), tv.bct);
-            assert_eq!(pt.0, tv.pt);
-            assert_eq!(ct.0, tv.ct);
-            assert_eq!(bpt.0, tv.pt);
-            assert_eq!(bct.0, tv.ct);
+            assert_eq!(pt.to_bytes_le(), tvb.pt);
+            assert_eq!(ct.to_bytes_le(), tvb.ct);
+            assert_eq!(bpt.to_bytes_le(), tvb.pt);
+            assert_eq!(bct.to_bytes_le(), tvb.ct);
+            assert_eq!(pt.0, tvpt);
+            assert_eq!(ct.0, tvct);
+            assert_eq!(bpt.0, tvpt);
+            assert_eq!(bct.0, tvct);
         }
     }
 }

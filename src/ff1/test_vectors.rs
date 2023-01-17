@@ -1,5 +1,6 @@
 use core::array;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum AesType {
     AES128,
     AES192,
@@ -13,6 +14,12 @@ pub(crate) struct TestVector {
     pub(crate) tweak: Vec<u8>,
     pub(crate) pt: Vec<u16>,
     pub(crate) ct: Vec<u16>,
+    pub(crate) binary: Option<BinaryTestVector>,
+}
+
+pub(crate) struct BinaryTestVector {
+    pub(crate) pt: Vec<u8>,
+    pub(crate) ct: Vec<u8>,
 }
 
 pub(crate) fn get() -> impl Iterator<Item = TestVector> {
@@ -30,6 +37,7 @@ pub(crate) fn get() -> impl Iterator<Item = TestVector> {
             tweak: vec![],
             pt: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
             ct: vec![2, 4, 3, 3, 4, 7, 7, 4, 8, 4],
+            binary: None,
         },
         TestVector {
             // Sample #2
@@ -42,6 +50,7 @@ pub(crate) fn get() -> impl Iterator<Item = TestVector> {
             tweak: vec![0x39, 0x38, 0x37, 0x36, 0x35, 0x34, 0x33, 0x32, 0x31, 0x30],
             pt: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
             ct: vec![6, 1, 2, 4, 2, 0, 0, 7, 7, 3],
+            binary: None,
         },
         TestVector {
             // Sample #3
@@ -60,6 +69,7 @@ pub(crate) fn get() -> impl Iterator<Item = TestVector> {
             ct: vec![
                 10, 9, 29, 31, 4, 0, 22, 21, 21, 9, 20, 13, 30, 5, 0, 9, 14, 30, 22,
             ],
+            binary: None,
         },
         TestVector {
             // Sample #4
@@ -72,6 +82,7 @@ pub(crate) fn get() -> impl Iterator<Item = TestVector> {
             tweak: vec![],
             pt: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
             ct: vec![2, 8, 3, 0, 6, 6, 8, 1, 3, 2],
+            binary: None,
         },
         TestVector {
             // Sample #5
@@ -84,6 +95,7 @@ pub(crate) fn get() -> impl Iterator<Item = TestVector> {
             tweak: vec![0x39, 0x38, 0x37, 0x36, 0x35, 0x34, 0x33, 0x32, 0x31, 0x30],
             pt: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
             ct: vec![2, 4, 9, 6, 6, 5, 5, 5, 4, 9],
+            binary: None,
         },
         TestVector {
             // Sample #6
@@ -102,6 +114,7 @@ pub(crate) fn get() -> impl Iterator<Item = TestVector> {
             ct: vec![
                 33, 11, 19, 3, 20, 31, 3, 5, 19, 27, 10, 32, 33, 31, 3, 2, 34, 28, 27,
             ],
+            binary: None,
         },
         TestVector {
             // Sample #7
@@ -115,6 +128,7 @@ pub(crate) fn get() -> impl Iterator<Item = TestVector> {
             tweak: vec![],
             pt: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
             ct: vec![6, 6, 5, 7, 6, 6, 7, 0, 0, 9],
+            binary: None,
         },
         TestVector {
             // Sample #8
@@ -128,6 +142,7 @@ pub(crate) fn get() -> impl Iterator<Item = TestVector> {
             tweak: vec![0x39, 0x38, 0x37, 0x36, 0x35, 0x34, 0x33, 0x32, 0x31, 0x30],
             pt: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
             ct: vec![1, 0, 0, 1, 6, 2, 3, 4, 6, 3],
+            binary: None,
         },
         TestVector {
             // Sample #9
@@ -147,6 +162,7 @@ pub(crate) fn get() -> impl Iterator<Item = TestVector> {
             ct: vec![
                 33, 28, 8, 10, 0, 10, 35, 17, 2, 10, 31, 34, 10, 21, 34, 35, 30, 32, 13,
             ],
+            binary: None,
         },
         // From https://github.com/capitalone/fpe/blob/master/ff1/ff1_test.go
         TestVector {
@@ -175,6 +191,7 @@ pub(crate) fn get() -> impl Iterator<Item = TestVector> {
                 28, 9, 21, 21, 5, 12, 29, 24, 35, 22, 14, 1, 17, 15, 1, 5, 32, 7, 33, 24, 6, 35,
                 28, 34, 21, 26, 12, 27, 0, 23, 11, 33, 9, 19, 11, 15, 1, 0, 30, 22, 35, 24, 20,
             ],
+            binary: None,
         },
         // Zcash test vectors
         // From https://github.com/zcash-hackworks/zcash-test-vectors/blob/master/ff1.py
@@ -194,6 +211,14 @@ pub(crate) fn get() -> impl Iterator<Item = TestVector> {
                 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0,
                 1, 1, 1, 1,
             ],
+            binary: Some(BinaryTestVector {
+                pt: vec![
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                ],
+                ct: vec![
+                    0x90, 0xac, 0xee, 0x3f, 0x83, 0xcd, 0xe7, 0xae, 0x56, 0x22, 0xf3,
+                ],
+            }),
         },
         TestVector {
             aes: AesType::AES256,
@@ -216,6 +241,14 @@ pub(crate) fn get() -> impl Iterator<Item = TestVector> {
                 1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1,
                 1, 0, 0, 0,
             ],
+            binary: Some(BinaryTestVector {
+                pt: vec![
+                    0x90, 0xac, 0xee, 0x3f, 0x83, 0xcd, 0xe7, 0xae, 0x56, 0x22, 0xf3,
+                ],
+                ct: vec![
+                    0x5b, 0x8b, 0xf1, 0x20, 0xf3, 0x9b, 0xab, 0x85, 0x27, 0xea, 0x1b,
+                ],
+            }),
         },
         TestVector {
             aes: AesType::AES256,
@@ -238,6 +271,14 @@ pub(crate) fn get() -> impl Iterator<Item = TestVector> {
                 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 1, 0,
                 0, 1, 1, 0,
             ],
+            binary: Some(BinaryTestVector {
+                pt: vec![
+                    0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa,
+                ],
+                ct: vec![
+                    0xf0, 0x82, 0xb7, 0xee, 0x8f, 0x29, 0xc0, 0x76, 0x91, 0xce, 0x64,
+                ],
+            }),
         },
         TestVector {
             aes: AesType::AES256,
@@ -276,6 +317,14 @@ pub(crate) fn get() -> impl Iterator<Item = TestVector> {
                 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 1, 0,
                 0, 0, 1, 1,
             ],
+            binary: Some(BinaryTestVector {
+                pt: vec![
+                    0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa,
+                ],
+                ct: vec![
+                    0xbe, 0x11, 0xb8, 0x86, 0xa8, 0x5, 0x9c, 0x27, 0x51, 0x7b, 0xc5,
+                ],
+            }),
         },
     ])
 }
