@@ -13,8 +13,8 @@ keywords = ["ff1"]
 categories = ["cryptography", "no-std"]
 
 [dependencies]
-block-modes = { version = "0.8", default-features = false }
-cipher = "0.3"
+cbc = { version = "0.1", default-features = false }
+cipher = "0.4"
 libm = "0.2"
 
 num-bigint = { version = "0.4", optional = true, default-features = false }
@@ -22,7 +22,7 @@ num-integer = { version = "0.1", optional = true, default-features = false }
 num-traits = { version = "0.2", optional = true, default-features = false }
 
 [dev-dependencies]
-aes = "0.7"
+aes = "0.8"
 
 # Benchmarks
 #aes-old = { package = "aes", version = "0.3" }
