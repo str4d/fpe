@@ -23,14 +23,24 @@ num-traits = { version = "0.2", optional = true, default-features = false }
 
 [dev-dependencies]
 aes = "0.7"
+
+# Benchmarks
 #aes-old = { package = "aes", version = "0.3" }
 #binary-ff1 = "0.1"
-criterion = "0.3"
-criterion-cycles-per-byte = "0.1"
+criterion = "0.4"
+
+[target.'cfg(any(target_arch = "x86", target_arch = "x86_64"))'.dev-dependencies]
+criterion-cycles-per-byte = "0.4"
+
+[target.'cfg(unix)'.dev-dependencies]
+pprof = { version = "0.11", features = ["criterion", "flamegraph"] }
 
 [features]
 default = ["alloc"]
 alloc = ["num-bigint", "num-integer", "num-traits"]
+
+[lib]
+bench = false
 
 [[bench]]
 name = "ff1"
