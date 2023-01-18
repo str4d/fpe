@@ -154,7 +154,7 @@ pub trait NumeralString: Sized {
     fn is_valid(&self, radix: u32) -> bool;
 
     /// Returns the number of numerals in this numeral string.
-    fn len(&self) -> usize;
+    fn numeral_count(&self) -> usize;
 
     /// Splits this numeral string into two sections X[..u] and X[u..].
     fn split(&self, u: usize) -> (Self, Self);
@@ -262,9 +262,9 @@ impl<CIPH: BlockCipher + BlockEncrypt + Clone> FF1<CIPH> {
         if !x.is_valid(self.radix.to_u32()) {
             return Err(NumeralStringError::InvalidForRadix(self.radix.to_u32()));
         }
-        self.radix.check_ns_length(x.len())?;
+        self.radix.check_ns_length(x.numeral_count())?;
 
-        let n = x.len();
+        let n = x.numeral_count();
         let t = tweak.len();
 
         // 1. Let u = floor(n / 2); v = n - u
@@ -340,9 +340,9 @@ impl<CIPH: BlockCipher + BlockEncrypt + Clone> FF1<CIPH> {
         if !x.is_valid(self.radix.to_u32()) {
             return Err(NumeralStringError::InvalidForRadix(self.radix.to_u32()));
         }
-        self.radix.check_ns_length(x.len())?;
+        self.radix.check_ns_length(x.numeral_count())?;
 
-        let n = x.len();
+        let n = x.numeral_count();
         let t = tweak.len();
 
         // 1. Let u = floor(n / 2); v = n - u

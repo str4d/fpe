@@ -20,6 +20,8 @@ and this library adheres to Rust's notion of
     numeral strings. The minimum length depends on the radix, while the maximum
     length is `u32::MAX` numerals (which means `BinaryNumeralString` can process
     data that is less than 16 MiB).
+  - Refactored `NumeralString` trait:
+    - Renamed `NumeralString::len` to `NumeralString::numeral_count`.
 
 ## [0.5.1] - 2021-10-27
 ### Fixed

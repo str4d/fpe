@@ -79,7 +79,7 @@ impl NumeralString for FlexibleNumeralString {
         self.0.iter().all(|n| (u32::from(*n) < radix))
     }
 
-    fn len(&self) -> usize {
+    fn numeral_count(&self) -> usize {
         self.0.len()
     }
 
@@ -160,7 +160,7 @@ impl NumeralString for BinaryNumeralString {
         self.0.iter().all(|n| (u32::from(*n) < radix))
     }
 
-    fn len(&self) -> usize {
+    fn numeral_count(&self) -> usize {
         self.0.len()
     }
 
@@ -303,13 +303,13 @@ mod tests {
         for tv in test_vectors::get() {
             {
                 let pt = FlexibleNumeralString::from(tv.pt.clone());
-                let (a, b) = pt.split(pt.len() / 2);
+                let (a, b) = pt.split(pt.numeral_count() / 2);
                 assert_eq!(FlexibleNumeralString::concat(a, b).0, tv.pt);
             }
 
             {
                 let ct = FlexibleNumeralString::from(tv.ct.clone());
-                let (a, b) = ct.split(ct.len() / 2);
+                let (a, b) = ct.split(ct.numeral_count() / 2);
                 assert_eq!(FlexibleNumeralString::concat(a, b).0, tv.ct);
             }
         }
@@ -353,13 +353,13 @@ mod tests {
 
             {
                 let pt = BinaryNumeralString::from_bytes_le(&tvb.pt);
-                let (a, b) = pt.split(pt.len() / 2);
+                let (a, b) = pt.split(pt.numeral_count() / 2);
                 assert_eq!(BinaryNumeralString::concat(a, b).to_bytes_le(), tvb.pt);
             }
 
             {
                 let ct = BinaryNumeralString::from_bytes_le(&tvb.ct);
-                let (a, b) = ct.split(ct.len() / 2);
+                let (a, b) = ct.split(ct.numeral_count() / 2);
                 assert_eq!(BinaryNumeralString::concat(a, b).to_bytes_le(), tvb.ct);
             }
         }
