@@ -36,8 +36,9 @@ criterion-cycles-per-byte = "0.4"
 pprof = { version = "0.11", features = ["criterion", "flamegraph"] }
 
 [features]
-default = ["alloc"]
+default = ["std"]
 alloc = ["num-bigint", "num-integer", "num-traits"]
+std = ["alloc"]
 
 [lib]
 bench = false

@@ -8,6 +8,9 @@ use cipher::{
     KeyInit,
 };
 
+mod error;
+pub use error::{InvalidRadix, NumeralStringError};
+
 #[cfg(feature = "alloc")]
 mod alloc;
 #[cfg(feature = "alloc")]
@@ -25,10 +28,10 @@ enum Radix {
 }
 
 impl Radix {
-    pub fn from(radix: u32) -> Result<Self, ()> {
+    fn from_u32(radix: u32) -> Result<Self, InvalidRadix> {
         // radix must be in range [2..=2^16]
         if !(2..=(1 << 16)).contains(&radix) {
-            return Err(());
+            return Err(InvalidRadix(radix));
         }
 
         let mut tmp = radix;
@@ -186,9 +189,9 @@ impl<CIPH: BlockCipher + KeyInit> FF1<CIPH> {
     /// Creates a new FF1 object for the given key and radix.
     ///
     /// Returns an error if the given radix is not in [2..2^16].
-    pub fn new(key: &[u8], radix: u32) -> Result<Self, ()> {
+    pub fn new(key: &[u8], radix: u32) -> Result<Self, InvalidRadix> {
         let ciph = CIPH::new(GenericArray::from_slice(key));
-        let radix = Radix::from(radix)?;
+        let radix = Radix::from_u32(radix)?;
         Ok(FF1 { ciph, radix })
     }
 }
@@ -198,9 +201,13 @@ impl<CIPH: BlockCipher + BlockEncrypt + Clone> FF1<CIPH> {
     ///
     /// Returns an error if the numeral string is not in the required radix.
     #[allow(clippy::many_single_char_names)]
-    pub fn encrypt<NS: NumeralString>(&self, tweak: &[u8], x: &NS) -> Result<NS, ()> {
+    pub fn encrypt<NS: NumeralString>(
+        &self,
+        tweak: &[u8],
+        x: &NS,
+    ) -> Result<NS, NumeralStringError> {
         if !x.is_valid(self.radix.to_u32()) {
-            return Err(());
+            return Err(NumeralStringError::InvalidForRadix(self.radix.to_u32()));
         }
 
         let n = x.len();
@@ -271,9 +278,13 @@ impl<CIPH: BlockCipher + BlockEncrypt + Clone> FF1<CIPH> {
     ///
     /// Returns an error if the numeral string is not in the required radix.
     #[allow(clippy::many_single_char_names)]
-    pub fn decrypt<NS: NumeralString>(&self, tweak: &[u8], x: &NS) -> Result<NS, ()> {
+    pub fn decrypt<NS: NumeralString>(
+        &self,
+        tweak: &[u8],
+        x: &NS,
+    ) -> Result<NS, NumeralStringError> {
         if !x.is_valid(self.radix.to_u32()) {
-            return Err(());
+            return Err(NumeralStringError::InvalidForRadix(self.radix.to_u32()));
         }
 
         let n = x.len();
@@ -344,51 +355,51 @@ impl<CIPH: BlockCipher + BlockEncrypt + Clone> FF1<CIPH> {
 
 #[cfg(test)]
 mod tests {
-    use super::Radix;
+    use super::{InvalidRadix, Radix};
 
     #[test]
     fn radix() {
-        assert_eq!(Radix::from(1), Err(()));
+        assert_eq!(Radix::from_u32(1), Err(InvalidRadix(1)));
         assert_eq!(
-            Radix::from(2),
+            Radix::from_u32(2),
             Ok(Radix::PowerTwo {
                 radix: 2,
                 log_radix: 1,
             })
         );
-        assert_eq!(Radix::from(3), Ok(Radix::Any(3)));
+        assert_eq!(Radix::from_u32(3), Ok(Radix::Any(3)));
         assert_eq!(
-            Radix::from(4),
+            Radix::from_u32(4),
             Ok(Radix::PowerTwo {
                 radix: 4,
                 log_radix: 2,
             })
         );
-        assert_eq!(Radix::from(5), Ok(Radix::Any(5)));
-        assert_eq!(Radix::from(6), Ok(Radix::Any(6)));
-        assert_eq!(Radix::from(7), Ok(Radix::Any(7)));
+        assert_eq!(Radix::from_u32(5), Ok(Radix::Any(5)));
+        assert_eq!(Radix::from_u32(6), Ok(Radix::Any(6)));
+        assert_eq!(Radix::from_u32(7), Ok(Radix::Any(7)));
         assert_eq!(
-            Radix::from(8),
+            Radix::from_u32(8),
             Ok(Radix::PowerTwo {
                 radix: 8,
                 log_radix: 3,
             })
         );
         assert_eq!(
-            Radix::from(32768),
+            Radix::from_u32(32768),
             Ok(Radix::PowerTwo {
                 radix: 32768,
                 log_radix: 15,
             })
         );
-        assert_eq!(Radix::from(65535), Ok(Radix::Any(65535)));
+        assert_eq!(Radix::from_u32(65535), Ok(Radix::Any(65535)));
         assert_eq!(
-            Radix::from(65536),
+            Radix::from_u32(65536),
             Ok(Radix::PowerTwo {
                 radix: 65536,
                 log_radix: 16,
             })
         );
-        assert_eq!(Radix::from(65537), Err(()));
+        assert_eq!(Radix::from_u32(65537), Err(InvalidRadix(65537)));
     }
 }

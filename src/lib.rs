@@ -21,7 +21,7 @@
 //! assert_eq!(p2.to_bytes_le(), pt);
 //! ```
 
-#![cfg_attr(not(test), no_std)]
+#![cfg_attr(not(any(feature = "std", test)), no_std)]
 #![deny(missing_docs)] // refuse to compile if documentation is missing
 
 #[cfg(feature = "alloc")]
