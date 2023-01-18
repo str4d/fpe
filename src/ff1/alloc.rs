@@ -57,6 +57,7 @@ impl Numeral for BigUint {
 }
 
 /// A numeral string that supports radixes in [2..2^16).
+#[cfg_attr(test, derive(Debug))]
 pub struct FlexibleNumeralString(Vec<u16>);
 
 impl From<Vec<u16>> for FlexibleNumeralString {
@@ -113,6 +114,7 @@ impl NumeralString for FlexibleNumeralString {
 }
 
 /// A numeral string with radix 2.
+#[cfg_attr(test, derive(Debug))]
 pub struct BinaryNumeralString(Vec<u8>);
 
 impl BinaryNumeralString {
@@ -209,7 +211,7 @@ mod tests {
     use super::{BinaryNumeralString, FlexibleNumeralString};
     use crate::ff1::{
         test_vectors::{self, AesType},
-        NumeralString, FF1,
+        NumeralString, NumeralStringError, FF1,
     };
 
     #[test]
@@ -220,6 +222,80 @@ mod tests {
 
         let ns = FlexibleNumeralString::from(vec![0, 5, 10]);
         assert!(!ns.is_valid(radix));
+    }
+
+    #[test]
+    fn radix_2_length_limits() {
+        let ff = FF1::<Aes128>::new(&[0; 16], 2).unwrap();
+
+        assert_eq!(
+            ff.encrypt(&[], &BinaryNumeralString::from_bytes_le(&[]))
+                .unwrap_err(),
+            NumeralStringError::TooShort {
+                ns_len: 0,
+                min_len: 20,
+            },
+        );
+        assert_eq!(
+            ff.encrypt(&[], &BinaryNumeralString::from_bytes_le(&[0]))
+                .unwrap_err(),
+            NumeralStringError::TooShort {
+                ns_len: 8,
+                min_len: 20,
+            },
+        );
+        assert_eq!(
+            ff.encrypt(&[], &BinaryNumeralString::from_bytes_le(&[0; 2]))
+                .unwrap_err(),
+            NumeralStringError::TooShort {
+                ns_len: 16,
+                min_len: 20,
+            },
+        );
+        assert!(ff
+            .encrypt(&[], &BinaryNumeralString::from_bytes_le(&[0; 3]))
+            .is_ok());
+    }
+
+    #[test]
+    fn radix_10_length_limits() {
+        let ff = FF1::<Aes128>::new(&[0; 16], 10).unwrap();
+
+        assert_eq!(
+            ff.encrypt(&[], &FlexibleNumeralString::from(vec![]))
+                .unwrap_err(),
+            NumeralStringError::TooShort {
+                ns_len: 0,
+                min_len: 6,
+            },
+        );
+        assert_eq!(
+            ff.encrypt(&[], &FlexibleNumeralString::from(vec![0]))
+                .unwrap_err(),
+            NumeralStringError::TooShort {
+                ns_len: 1,
+                min_len: 6,
+            },
+        );
+        assert_eq!(
+            ff.encrypt(&[], &FlexibleNumeralString::from(vec![0; 2]))
+                .unwrap_err(),
+            NumeralStringError::TooShort {
+                ns_len: 2,
+                min_len: 6,
+            },
+        );
+        assert_eq!(
+            ff.encrypt(&[], &FlexibleNumeralString::from(vec![0; 5]))
+                .unwrap_err(),
+            NumeralStringError::TooShort {
+                ns_len: 5,
+                min_len: 6,
+            },
+        );
+        assert!(ff
+            .encrypt(&[], &FlexibleNumeralString::from(vec![0; 6]))
+            .is_ok());
     }
 
     #[test]

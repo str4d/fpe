@@ -8,6 +8,9 @@ use cipher::{
     KeyInit,
 };
 
+#[cfg(test)]
+use static_assertions::const_assert;
+
 mod error;
 pub use error::{InvalidRadix, NumeralStringError};
 
@@ -19,12 +22,35 @@ pub use self::alloc::{BinaryNumeralString, FlexibleNumeralString};
 #[cfg(test)]
 mod test_vectors;
 
+/// The minimum allowed numeral string length for any radix.
+const MIN_NS_LEN: u32 = 2;
+/// The maximum allowed numeral string length for any radix.
+const MAX_NS_LEN: usize = u32::MAX as usize;
+
+/// The minimum allowed value of radix^minlen.
+///
+/// Defined in [NIST SP 800-38G Revision 1](https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-38Gr1-draft.pdf).
+#[cfg(test)]
+const MIN_NS_DOMAIN_SIZE: u32 = 1_000_000;
+
+/// `minlen` such that `2^minlen >= MIN_NS_DOMAIN_SIZE`.
+const MIN_RADIX_2_NS_LEN: u32 = 20;
+/// `log_10(MIN_NS_DOMAIN_SIZE)`
+const LOG_10_MIN_NS_DOMAIN_SIZE: f64 = 6.0;
+
+#[cfg(test)]
+const_assert!((1 << MIN_RADIX_2_NS_LEN) >= MIN_NS_DOMAIN_SIZE);
+
 #[derive(Debug, PartialEq)]
 enum Radix {
     /// A radix in [2..2^16]. It uses floating-point arithmetic.
-    Any(u32),
+    Any { radix: u32, min_len: u32 },
     /// A radix 2^i for i in [1..16]. It does not use floating-point arithmetic.
-    PowerTwo { radix: u32, log_radix: u8 },
+    PowerTwo {
+        radix: u32,
+        min_len: u32,
+        log_radix: u8,
+    },
 }
 
 impl Radix {
@@ -52,23 +78,50 @@ impl Radix {
             tmp >>= 1;
         }
         Ok(match log_radix {
-            Some(log_radix) => Radix::PowerTwo { radix, log_radix },
-            None => Radix::Any(radix),
+            Some(log_radix) => Radix::PowerTwo {
+                radix,
+                min_len: cmp::max(
+                    (MIN_RADIX_2_NS_LEN + u32::from(log_radix) - 1) / u32::from(log_radix),
+                    MIN_NS_LEN,
+                ),
+                log_radix,
+            },
+            None => {
+                use libm::{ceil, log10};
+                let min_len = ceil(LOG_10_MIN_NS_DOMAIN_SIZE / log10(f64::from(radix))) as u32;
+                Radix::Any { radix, min_len }
+            }
         })
+    }
+
+    fn check_ns_length(&self, ns_len: usize) -> Result<(), NumeralStringError> {
+        let min_len = match *self {
+            Radix::Any { min_len, .. } => min_len as usize,
+            Radix::PowerTwo { min_len, .. } => min_len as usize,
+        };
+        let max_len = MAX_NS_LEN;
+
+        if ns_len < min_len {
+            Err(NumeralStringError::TooShort { ns_len, min_len })
+        } else if ns_len > max_len {
+            Err(NumeralStringError::TooLong { ns_len, max_len })
+        } else {
+            Ok(())
+        }
     }
 
     /// Calculates b = ceil(ceil(v * log2(radix)) / 8).
     fn calculate_b(&self, v: usize) -> usize {
         use libm::{ceil, log2};
         match *self {
-            Radix::Any(r) => ceil(v as f64 * log2(f64::from(r)) / 8f64) as usize,
+            Radix::Any { radix, .. } => ceil(v as f64 * log2(f64::from(radix)) / 8f64) as usize,
             Radix::PowerTwo { log_radix, .. } => ((v * log_radix as usize) + 7) / 8,
         }
     }
 
     fn to_u32(&self) -> u32 {
         match *self {
-            Radix::Any(r) => r,
+            Radix::Any { radix, .. } => radix,
             Radix::PowerTwo { radix, .. } => radix,
         }
     }
@@ -209,6 +262,7 @@ impl<CIPH: BlockCipher + BlockEncrypt + Clone> FF1<CIPH> {
         if !x.is_valid(self.radix.to_u32()) {
             return Err(NumeralStringError::InvalidForRadix(self.radix.to_u32()));
         }
+        self.radix.check_ns_length(x.len())?;
 
         let n = x.len();
         let t = tweak.len();
@@ -286,6 +340,7 @@ impl<CIPH: BlockCipher + BlockEncrypt + Clone> FF1<CIPH> {
         if !x.is_valid(self.radix.to_u32()) {
             return Err(NumeralStringError::InvalidForRadix(self.radix.to_u32()));
         }
+        self.radix.check_ns_length(x.len())?;
 
         let n = x.len();
         let t = tweak.len();
@@ -355,7 +410,19 @@ impl<CIPH: BlockCipher + BlockEncrypt + Clone> FF1<CIPH> {
 
 #[cfg(test)]
 mod tests {
-    use super::{InvalidRadix, Radix};
+    use super::{
+        InvalidRadix, Radix, LOG_10_MIN_NS_DOMAIN_SIZE, MIN_NS_DOMAIN_SIZE, MIN_NS_LEN,
+        MIN_RADIX_2_NS_LEN,
+    };
+
+    #[test]
+    fn log_10_min_ns_domain_size() {
+        use libm::pow;
+        assert_eq!(
+            pow(10.0, LOG_10_MIN_NS_DOMAIN_SIZE),
+            f64::from(MIN_NS_DOMAIN_SIZE)
+        );
+    }
 
     #[test]
     fn radix() {
@@ -364,39 +431,81 @@ mod tests {
             Radix::from_u32(2),
             Ok(Radix::PowerTwo {
                 radix: 2,
+                min_len: MIN_RADIX_2_NS_LEN,
                 log_radix: 1,
             })
         );
-        assert_eq!(Radix::from_u32(3), Ok(Radix::Any(3)));
+        assert_eq!(
+            Radix::from_u32(3),
+            Ok(Radix::Any {
+                radix: 3,
+                min_len: 13,
+            })
+        );
         assert_eq!(
             Radix::from_u32(4),
             Ok(Radix::PowerTwo {
                 radix: 4,
+                min_len: MIN_RADIX_2_NS_LEN / 2,
                 log_radix: 2,
             })
         );
-        assert_eq!(Radix::from_u32(5), Ok(Radix::Any(5)));
-        assert_eq!(Radix::from_u32(6), Ok(Radix::Any(6)));
-        assert_eq!(Radix::from_u32(7), Ok(Radix::Any(7)));
+        assert_eq!(
+            Radix::from_u32(5),
+            Ok(Radix::Any {
+                radix: 5,
+                min_len: 9,
+            })
+        );
+        assert_eq!(
+            Radix::from_u32(6),
+            Ok(Radix::Any {
+                radix: 6,
+                min_len: 8,
+            })
+        );
+        assert_eq!(
+            Radix::from_u32(7),
+            Ok(Radix::Any {
+                radix: 7,
+                min_len: 8,
+            })
+        );
         assert_eq!(
             Radix::from_u32(8),
             Ok(Radix::PowerTwo {
                 radix: 8,
+                min_len: 7,
                 log_radix: 3,
+            })
+        );
+        assert_eq!(
+            Radix::from_u32(10),
+            Ok(Radix::Any {
+                radix: 10,
+                min_len: 6,
             })
         );
         assert_eq!(
             Radix::from_u32(32768),
             Ok(Radix::PowerTwo {
                 radix: 32768,
+                min_len: MIN_NS_LEN,
                 log_radix: 15,
             })
         );
-        assert_eq!(Radix::from_u32(65535), Ok(Radix::Any(65535)));
+        assert_eq!(
+            Radix::from_u32(65535),
+            Ok(Radix::Any {
+                radix: 65535,
+                min_len: MIN_NS_LEN,
+            })
+        );
         assert_eq!(
             Radix::from_u32(65536),
             Ok(Radix::PowerTwo {
                 radix: 65536,
+                min_len: MIN_NS_LEN,
                 log_radix: 16,
             })
         );

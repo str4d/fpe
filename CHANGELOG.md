@@ -16,6 +16,10 @@ and this library adheres to Rust's notion of
 - `fpe::ff1`:
   - `FF1::new` now returns `Result<_, InvalidRadix>`.
   - `FF1::{encrypt, decrypt}` now return `Result<_, NumeralStringError>`.
+  - `FF1::{encrypt, decrypt}` now enforce minimum and maximum lengths for
+    numeral strings. The minimum length depends on the radix, while the maximum
+    length is `u32::MAX` numerals (which means `BinaryNumeralString` can process
+    data that is less than 16 MiB).
 
 ## [0.5.1] - 2021-10-27
 ### Fixed
