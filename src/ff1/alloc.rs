@@ -57,6 +57,7 @@ impl Numeral for BigUint {
 }
 
 /// A numeral string that supports radixes in [2..2^16).
+#[cfg_attr(test, derive(Debug))]
 pub struct FlexibleNumeralString(Vec<u16>);
 
 impl From<Vec<u16>> for FlexibleNumeralString {
@@ -78,7 +79,7 @@ impl NumeralString for FlexibleNumeralString {
         self.0.iter().all(|n| (u32::from(*n) < radix))
     }
 
-    fn len(&self) -> usize {
+    fn numeral_count(&self) -> usize {
         self.0.len()
     }
 
@@ -113,6 +114,7 @@ impl NumeralString for FlexibleNumeralString {
 }
 
 /// A numeral string with radix 2.
+#[cfg_attr(test, derive(Debug))]
 pub struct BinaryNumeralString(Vec<u8>);
 
 impl BinaryNumeralString {
@@ -158,7 +160,7 @@ impl NumeralString for BinaryNumeralString {
         self.0.iter().all(|n| (u32::from(*n) < radix))
     }
 
-    fn len(&self) -> usize {
+    fn numeral_count(&self) -> usize {
         self.0.len()
     }
 
@@ -209,7 +211,7 @@ mod tests {
     use super::{BinaryNumeralString, FlexibleNumeralString};
     use crate::ff1::{
         test_vectors::{self, AesType},
-        NumeralString, FF1,
+        NumeralString, NumeralStringError, FF1,
     };
 
     #[test]
@@ -223,17 +225,91 @@ mod tests {
     }
 
     #[test]
+    fn radix_2_length_limits() {
+        let ff = FF1::<Aes128>::new(&[0; 16], 2).unwrap();
+
+        assert_eq!(
+            ff.encrypt(&[], &BinaryNumeralString::from_bytes_le(&[]))
+                .unwrap_err(),
+            NumeralStringError::TooShort {
+                ns_len: 0,
+                min_len: 20,
+            },
+        );
+        assert_eq!(
+            ff.encrypt(&[], &BinaryNumeralString::from_bytes_le(&[0]))
+                .unwrap_err(),
+            NumeralStringError::TooShort {
+                ns_len: 8,
+                min_len: 20,
+            },
+        );
+        assert_eq!(
+            ff.encrypt(&[], &BinaryNumeralString::from_bytes_le(&[0; 2]))
+                .unwrap_err(),
+            NumeralStringError::TooShort {
+                ns_len: 16,
+                min_len: 20,
+            },
+        );
+        assert!(ff
+            .encrypt(&[], &BinaryNumeralString::from_bytes_le(&[0; 3]))
+            .is_ok());
+    }
+
+    #[test]
+    fn radix_10_length_limits() {
+        let ff = FF1::<Aes128>::new(&[0; 16], 10).unwrap();
+
+        assert_eq!(
+            ff.encrypt(&[], &FlexibleNumeralString::from(vec![]))
+                .unwrap_err(),
+            NumeralStringError::TooShort {
+                ns_len: 0,
+                min_len: 6,
+            },
+        );
+        assert_eq!(
+            ff.encrypt(&[], &FlexibleNumeralString::from(vec![0]))
+                .unwrap_err(),
+            NumeralStringError::TooShort {
+                ns_len: 1,
+                min_len: 6,
+            },
+        );
+        assert_eq!(
+            ff.encrypt(&[], &FlexibleNumeralString::from(vec![0; 2]))
+                .unwrap_err(),
+            NumeralStringError::TooShort {
+                ns_len: 2,
+                min_len: 6,
+            },
+        );
+        assert_eq!(
+            ff.encrypt(&[], &FlexibleNumeralString::from(vec![0; 5]))
+                .unwrap_err(),
+            NumeralStringError::TooShort {
+                ns_len: 5,
+                min_len: 6,
+            },
+        );
+        assert!(ff
+            .encrypt(&[], &FlexibleNumeralString::from(vec![0; 6]))
+            .is_ok());
+    }
+
+    #[test]
     fn flexible_split_round_trip() {
         for tv in test_vectors::get() {
             {
                 let pt = FlexibleNumeralString::from(tv.pt.clone());
-                let (a, b) = pt.split(pt.len() / 2);
+                let (a, b) = pt.split(pt.numeral_count() / 2);
                 assert_eq!(FlexibleNumeralString::concat(a, b).0, tv.pt);
             }
 
             {
                 let ct = FlexibleNumeralString::from(tv.ct.clone());
-                let (a, b) = ct.split(ct.len() / 2);
+                let (a, b) = ct.split(ct.numeral_count() / 2);
                 assert_eq!(FlexibleNumeralString::concat(a, b).0, tv.ct);
             }
         }
@@ -277,13 +353,13 @@ mod tests {
 
             {
                 let pt = BinaryNumeralString::from_bytes_le(&tvb.pt);
-                let (a, b) = pt.split(pt.len() / 2);
+                let (a, b) = pt.split(pt.numeral_count() / 2);
                 assert_eq!(BinaryNumeralString::concat(a, b).to_bytes_le(), tvb.pt);
             }
 
             {
                 let ct = BinaryNumeralString::from_bytes_le(&tvb.ct);
-                let (a, b) = ct.split(ct.len() / 2);
+                let (a, b) = ct.split(ct.numeral_count() / 2);
                 assert_eq!(BinaryNumeralString::concat(a, b).to_bytes_le(), tvb.ct);
             }
         }

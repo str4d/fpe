@@ -16,6 +16,7 @@ categories = ["cryptography", "no-std"]
 cbc = { version = "0.1", default-features = false }
 cipher = "0.4"
 libm = "0.2"
+static_assertions = "1.1"
 
 num-bigint = { version = "0.4", optional = true, default-features = false }
 num-integer = { version = "0.1", optional = true, default-features = false }
@@ -36,8 +37,9 @@ criterion-cycles-per-byte = "0.4"
 pprof = { version = "0.11", features = ["criterion", "flamegraph"] }
 
 [features]
-default = ["alloc"]
+default = ["std"]
 alloc = ["num-bigint", "num-integer", "num-traits"]
+std = ["alloc"]
 
 [lib]
 bench = false
