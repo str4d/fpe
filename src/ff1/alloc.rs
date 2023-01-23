@@ -52,8 +52,12 @@ impl Numeral for BigUint {
             // (0 - 1) < 0). This optimization side-steps that special case.
             vec![0; b]
         } else {
-            let bytes = self.to_bytes_be();
-            iter::repeat(0).take(b - bytes.len()).chain(bytes).collect()
+            let mut bytes = self.to_bytes_le();
+            let padding = b - bytes.len();
+            bytes.reserve_exact(padding);
+            bytes.extend(iter::repeat(0).take(padding));
+            bytes.reverse();
+            bytes
         }
     }
 
