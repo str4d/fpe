@@ -366,19 +366,20 @@ impl Operations for BinaryOps {
         assert_eq!(self.num_bits, m);
         let other = BigUint::from_bytes(other);
         let c = self.num_radix(radix).add_mod_exp(other, radix, m);
-        Self::str_radix(c, radix, m)
+        self.str_radix(c)
     }
 
     fn sub_mod_exp(self, other: impl Iterator<Item = u8>, radix: u32, m: usize) -> Self {
         assert_eq!(self.num_bits, m);
         let other = BigUint::from_bytes(other);
         let c = self.num_radix(radix).sub_mod_exp(other, radix, m);
-        Self::str_radix(c, radix, m)
+        self.str_radix(c)
     }
 }
 
 impl BinaryOps {
     fn new(data: Vec<u8>, num_bits: usize) -> Self {
+        assert_eq!(data.len(), (num_bits + 7) / 8);
         BinaryOps { data, num_bits }
     }
 
@@ -388,18 +389,12 @@ impl BinaryOps {
         BigUint::from_bytes_le(&self.data)
     }
 
-    fn str_radix(x: BigUint, radix: u32, m: usize) -> Self {
-        // Check that radix == 2
-        assert_eq!(radix, 2);
+    /// Replace `self` with `STR(x, 2)`.
+    fn str_radix(mut self, x: BigUint) -> Self {
         let data = x.to_bytes_le();
-        let byte_len = (m + 7) / 8;
-        let padding = byte_len - data.len();
-        BinaryOps::new(
-            data.into_iter()
-                .chain(iter::repeat(0).take(padding))
-                .collect(),
-            m,
-        )
+        self.data[..data.len()].copy_from_slice(&data);
+        self.data[data.len()..].fill(0);
+        self
     }
 }
 
