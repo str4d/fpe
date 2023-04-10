@@ -6,6 +6,8 @@ and this library adheres to Rust's notion of
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.6.0] - 2023-04-10
 ### Added
 - `fpe::ff1`:
   - `InvalidRadix, NumeralStringError`
