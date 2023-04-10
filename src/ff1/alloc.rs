@@ -5,13 +5,12 @@ use core::iter;
 use alloc::{vec, vec::Vec};
 
 use num_bigint::{BigInt, BigUint, Sign};
-use num_integer::Integer;
 use num_traits::{
     identities::{One, Zero},
     ToPrimitive,
 };
 
-use super::{Numeral, NumeralString};
+use super::{NumeralString, Operations};
 
 fn pow(x: u32, e: usize) -> BigUint {
     let mut res = BigUint::one();
@@ -19,6 +18,24 @@ fn pow(x: u32, e: usize) -> BigUint {
         res *= x;
     }
     res
+}
+
+/// Extension trait adding FF1-relevant methods to `BigUint`.
+trait Numeral {
+    /// Type used for byte representations.
+    type Bytes: AsRef<[u8]>;
+
+    /// Returns the integer interpreted from the given bytes in big-endian order.
+    fn from_bytes(s: impl Iterator<Item = u8>) -> Self;
+
+    /// Returns the big-endian byte representation of this integer.
+    fn to_bytes(&self, b: usize) -> Self::Bytes;
+
+    /// Computes `(self + other) mod radix^m`.
+    fn add_mod_exp(self, other: Self, radix: u32, m: usize) -> Self;
+
+    /// Computes `(self - other) mod radix^m`.
+    fn sub_mod_exp(self, other: Self, radix: u32, m: usize) -> Self;
 }
 
 impl Numeral for BigUint {
@@ -35,8 +52,12 @@ impl Numeral for BigUint {
             // (0 - 1) < 0). This optimization side-steps that special case.
             vec![0; b]
         } else {
-            let bytes = self.to_bytes_be();
-            iter::repeat(0).take(b - bytes.len()).chain(bytes).collect()
+            let mut bytes = self.to_bytes_le();
+            let padding = b - bytes.len();
+            bytes.reserve_exact(padding);
+            bytes.extend(iter::repeat(0).take(padding));
+            bytes.reverse();
+            bytes
         }
     }
 
@@ -73,7 +94,7 @@ impl From<FlexibleNumeralString> for Vec<u16> {
 }
 
 impl NumeralString for FlexibleNumeralString {
-    type Num = BigUint;
+    type Ops = Self;
 
     fn is_valid(&self, radix: u32) -> bool {
         self.0.iter().all(|n| (u32::from(*n) < radix))
@@ -83,9 +104,9 @@ impl NumeralString for FlexibleNumeralString {
         self.0.len()
     }
 
-    fn split(&self, u: usize) -> (Self, Self) {
+    fn split(&self) -> (Self, Self) {
         let mut front = self.0.clone();
-        let back = front.split_off(u);
+        let back = front.split_off(self.0.len() / 2);
         (FlexibleNumeralString(front), FlexibleNumeralString(back))
     }
 
@@ -93,7 +114,33 @@ impl NumeralString for FlexibleNumeralString {
         a.0.append(&mut b.0);
         a
     }
+}
 
+impl Operations for FlexibleNumeralString {
+    type Bytes = Vec<u8>;
+
+    fn numeral_count(&self) -> usize {
+        self.0.len()
+    }
+
+    fn to_be_bytes(&self, radix: u32, b: usize) -> Self::Bytes {
+        self.num_radix(radix).to_bytes(b)
+    }
+
+    fn add_mod_exp(self, other: impl Iterator<Item = u8>, radix: u32, m: usize) -> Self {
+        let other = BigUint::from_bytes(other);
+        let c = self.num_radix(radix).add_mod_exp(other, radix, m);
+        Self::str_radix(c, radix, m)
+    }
+
+    fn sub_mod_exp(self, other: impl Iterator<Item = u8>, radix: u32, m: usize) -> Self {
+        let other = BigUint::from_bytes(other);
+        let c = self.num_radix(radix).sub_mod_exp(other, radix, m);
+        Self::str_radix(c, radix, m)
+    }
+}
+
+impl FlexibleNumeralString {
     fn num_radix(&self, radix: u32) -> BigUint {
         let mut res = BigUint::zero();
         for i in &self.0 {
@@ -121,86 +168,238 @@ impl BinaryNumeralString {
     /// Creates a BinaryNumeralString from a byte slice, with each byte
     /// interpreted in little-endian bit order.
     pub fn from_bytes_le(s: &[u8]) -> Self {
-        let mut data = Vec::with_capacity(s.len() * 8);
-        for n in s {
-            let mut tmp = *n;
-            for _ in 0..8 {
-                data.push(tmp & 1);
-                tmp >>= 1;
-            }
-        }
-        BinaryNumeralString(data)
+        BinaryNumeralString(s.to_vec())
     }
 
     /// Returns a Vec<u8>, with each byte written from the BinaryNumeralString
     /// in little-endian bit order.
     pub fn to_bytes_le(&self) -> Vec<u8> {
-        // We should always have a multiple of eight bits
-        assert_eq!((self.0.len() + 7) / 8, self.0.len() / 8);
-        let mut data = Vec::with_capacity(self.0.len() / 8);
-        let mut acc = 0;
-        let mut shift = 0;
-        for n in &self.0 {
-            acc += n << shift;
-            shift += 1;
-            if shift == 8 {
-                data.push(acc);
-                acc = 0;
-                shift = 0;
-            }
-        }
-        data
+        self.0.to_vec()
     }
 }
 
 impl NumeralString for BinaryNumeralString {
-    type Num = BigUint;
+    type Ops = BinaryOps;
 
     fn is_valid(&self, radix: u32) -> bool {
-        self.0.iter().all(|n| (u32::from(*n) < radix))
+        // This struct is valid for radix 2 by construction.
+        radix == 2
     }
 
     fn numeral_count(&self) -> usize {
-        self.0.len()
+        self.0.len() * 8
     }
 
-    fn split(&self, u: usize) -> (Self, Self) {
-        let mut front = self.0.clone();
-        let back = front.split_off(u);
-        (BinaryNumeralString(front), BinaryNumeralString(back))
+    fn split(&self) -> (Self::Ops, Self::Ops) {
+        let n = self.numeral_count();
+        let u = n / 2;
+        let v = n - u;
+        let a_end = (u + 7) / 8;
+        let b_start = u / 8;
+
+        // FF1 processes the two halves of a numeral string as big-endian integers in the
+        // given radix, via the `NUM_radix()` operation. We are operating on binary data
+        // with a radix of 2, which means the "bit string" is interpreted as big endian.
+        //
+        // However, `BinaryNumeralString::from_bytes_le` uses little-endian bit order when
+        // parsing a byte encoding into a bit string (which indeed it should, otherwise
+        // the byte encoding would be mixed-endian which no one should have to suffer).
+        //
+        // The strategy taken in `FlexibleNumeralString` (which `BinaryNumeralString`
+        // previously also used) is to parse the little-endian byte string into (what is
+        // effectively) a `Vec<bool>`, and then read that as a big-endian bit pattern to
+        // compute the corresponding `BigUint` arithmetic value. For binary data that is
+        // a multiple of 8 bits in length we can do better, but we need to take care about
+        // how the data is parsed at each step.
+        //
+        // Say the input was 5 bytes (for the sake of illustration, so we can show both
+        // multiple bytes and how half-bytes / "nibbles" are handled). Let's draw out the
+        // bytes, annotated with the least and most significant bytes (LSB, MSB) and bits
+        // (lsb, msb), and the numeral string indices for each bit:
+        //
+        // LSB                                       MSB
+        //  | 0..7 | 8..15 | 16..23 | 24..31 | 32..39 |
+        // lsb    msb
+        //
+        // We need to split this into two pieces that have the same numeral string indices
+        // but *opposite* endianness interpretation of the numerals (lsn, msn):
+        //
+        //    msn      lsn
+        // a = |  0..19 |
+        // b = | 20..39 |
+        //
+        // We also want to store the bits so we can parse with `BigUint::from_bytes_le`
+        // (which avoids an unnecessary allocation per FF1 round). This means that we need
+        // the bits to be arranged within the sub-string bytes as follows:
+        //
+        // LSB                                 MSB
+        //  | 19..12 | 11...4 |  3...0 / [0; 4] |
+        //  | 39..32 | 31..24 | 23..20 / [0; 4] |
+        // lsb      msb
+        //
+        // If instead we were using a radix of 2^8 = 256, then we would be operating on a
+        // "byte string" and the bit ordering of each byte would not matter. Alas.
+        let a_subslice = self.0[..a_end].iter();
+        let b_subslice = self.0[b_start..].iter();
+
+        let (a, b) = if u % 8 == 0 {
+            // Simple case: no shifting necessary, just splitting and reversing.
+            assert_eq!(a_end, b_start);
+
+            (
+                a_subslice.map(|b| b.reverse_bits()).rev().collect(),
+                b_subslice.map(|b| b.reverse_bits()).rev().collect(),
+            )
+        } else {
+            let mut a_processed = a_subslice
+                .scan(0, |carried: &mut u8, next: &u8| {
+                    // We need to shift `a` "forward" by 4 bits. This will cause the
+                    // top nibble to be dropped, which is fine because the subslices
+                    // we created from `self.0` overlapped by 1 byte.
+                    //
+                    // MSB  next       carried
+                    //  | ... /  N  |  C  / ... |
+                    //        |  N  /  C  | ...
+                    let shifted = (next << 4) | (*carried >> 4);
+                    *carried = *next;
+                    Some(shifted.reverse_bits())
+                })
+                .collect::<Vec<_>>();
+
+            // Because we call `Iterator::scan` on `a` (which erases knowledge about the
+            // iterator's length, as filtering can occur) before reversing it, we can't
+            // use `Iterator::rev` (which only works on known-length iterators). Since we
+            // know we have prepared the bits correctly within each byte, we perform the
+            // byte reversal inside the `Vec` instead.
+            a_processed.reverse();
+
+            (
+                a_processed,
+                b_subslice
+                    .map(|b| b.reverse_bits())
+                    // Clear (what will become) the most significant nibble.
+                    .enumerate()
+                    .map(|(i, b)| if i == 0 { b & 0x0f } else { b })
+                    .rev()
+                    .collect(),
+            )
+        };
+
+        (BinaryOps::new(a, u), BinaryOps::new(b, v))
     }
 
-    fn concat(mut a: Self, mut b: Self) -> Self {
-        a.0.append(&mut b.0);
-        a
+    fn concat(a: Self::Ops, b: Self::Ops) -> Self {
+        // If you're reading this, you've either already scrolled passed the comment in
+        // `Self::split` that explains what we are doing here, or you followed a direct
+        // link to this GitHub line. In either case, scroll up if you're confused by what
+        // we are doing in this method.
+        BinaryNumeralString(if a.num_bits % 8 == 0 {
+            // Simple case: no shifting necessary, just reversing and joining.
+            a.data
+                .into_iter()
+                .chain(b.data.into_iter())
+                .map(|b| b.reverse_bits())
+                .rev()
+                .collect()
+        } else {
+            // We need to shift `a` "backward" by 4 bits. We do this by shifting it
+            // "forward" by 4 bits before reversing the bytes.
+
+            // Save the least significant nibble of `a`, which slots into the empty nibble
+            // in what is currently the MSB of `b`, and will become the join interface.
+            let a_last = (a.data[0] & 0x0f) << 4;
+
+            let a_processed = a
+                .data
+                .into_iter()
+                .scan(0, |carried: &mut u8, next: u8| {
+                    // MSB  next       carried
+                    //  | ... /  N  | ... /  C  |
+                    //        |  N  /  C  | ...
+                    let shifted = (next << 4) | *carried;
+                    *carried = next >> 4;
+                    Some(shifted.reverse_bits())
+                })
+                // Skip the first byte, containing the nibble we saved above.
+                .skip(1);
+
+            let b_processed = b
+                .data
+                .into_iter()
+                // Double-reverse to make the enumeration simpler.
+                .rev()
+                .enumerate()
+                .rev()
+                // Slot the saved nibble from `a` into the space in `b`.
+                .map(|(i, b)| if i == 0 { a_last | b } else { b })
+                .map(|b| b.reverse_bits());
+
+            // Because we call `Iterator::scan` on `a` (which erases knowledge about the
+            // iterator's length, as filtering can occur) before reversing it, we can't
+            // use `Iterator::rev` (which only works on known-length iterators). Since we
+            // know their concatenation is an integer number of bytes, we perform the
+            // byte reversal inside the `Vec` instead.
+            let mut tmp = b_processed.chain(a_processed).collect::<Vec<_>>();
+            tmp.reverse();
+            tmp
+        })
+    }
+}
+
+pub struct BinaryOps {
+    /// The numeral string sub-section.
+    ///
+    /// Each byte is bit-big-endian relative to the bit string, so that the individual
+    /// bytes have the correct value, but the bytes are stored in little-endian order to
+    /// make loading into `BigUint` more efficient.
+    data: Vec<u8>,
+    num_bits: usize,
+}
+
+impl Operations for BinaryOps {
+    type Bytes = Vec<u8>;
+
+    fn numeral_count(&self) -> usize {
+        self.num_bits
+    }
+
+    fn to_be_bytes(&self, radix: u32, b: usize) -> Self::Bytes {
+        self.num_radix(radix).to_bytes(b)
+    }
+
+    fn add_mod_exp(self, other: impl Iterator<Item = u8>, radix: u32, m: usize) -> Self {
+        assert_eq!(self.num_bits, m);
+        let other = BigUint::from_bytes(other);
+        let c = self.num_radix(radix).add_mod_exp(other, radix, m);
+        self.str_radix(c)
+    }
+
+    fn sub_mod_exp(self, other: impl Iterator<Item = u8>, radix: u32, m: usize) -> Self {
+        assert_eq!(self.num_bits, m);
+        let other = BigUint::from_bytes(other);
+        let c = self.num_radix(radix).sub_mod_exp(other, radix, m);
+        self.str_radix(c)
+    }
+}
+
+impl BinaryOps {
+    fn new(data: Vec<u8>, num_bits: usize) -> Self {
+        assert_eq!(data.len(), (num_bits + 7) / 8);
+        BinaryOps { data, num_bits }
     }
 
     fn num_radix(&self, radix: u32) -> BigUint {
-        let zero = BigUint::zero();
-        let one = BigUint::one();
         // Check that radix == 2
         assert_eq!(radix, 2);
-        let mut res = zero;
-        for i in &self.0 {
-            res <<= 1;
-            if *i != 0 {
-                res += &one;
-            }
-        }
-        res
+        BigUint::from_bytes_le(&self.data)
     }
 
-    fn str_radix(mut x: BigUint, radix: u32, m: usize) -> Self {
-        // Check that radix == 2
-        assert_eq!(radix, 2);
-        let mut res = vec![0; m];
-        for i in 0..m {
-            if x.is_odd() {
-                res[m - 1 - i] = 1;
-            }
-            x >>= 1;
-        }
-        BinaryNumeralString(res)
+    /// Replace `self` with `STR(x, 2)`.
+    fn str_radix(mut self, x: BigUint) -> Self {
+        let data = x.to_bytes_le();
+        self.data[..data.len()].copy_from_slice(&data);
+        self.data[data.len()..].fill(0);
+        self
     }
 }
 
@@ -303,13 +502,13 @@ mod tests {
         for tv in test_vectors::get() {
             {
                 let pt = FlexibleNumeralString::from(tv.pt.clone());
-                let (a, b) = pt.split(pt.numeral_count() / 2);
+                let (a, b) = pt.split();
                 assert_eq!(FlexibleNumeralString::concat(a, b).0, tv.pt);
             }
 
             {
                 let ct = FlexibleNumeralString::from(tv.ct.clone());
-                let (a, b) = ct.split(ct.numeral_count() / 2);
+                let (a, b) = ct.split();
                 assert_eq!(FlexibleNumeralString::concat(a, b).0, tv.ct);
             }
         }
@@ -353,13 +552,13 @@ mod tests {
 
             {
                 let pt = BinaryNumeralString::from_bytes_le(&tvb.pt);
-                let (a, b) = pt.split(pt.numeral_count() / 2);
+                let (a, b) = pt.split();
                 assert_eq!(BinaryNumeralString::concat(a, b).to_bytes_le(), tvb.pt);
             }
 
             {
                 let ct = BinaryNumeralString::from_bytes_le(&tvb.ct);
-                let (a, b) = ct.split(ct.numeral_count() / 2);
+                let (a, b) = ct.split();
                 assert_eq!(BinaryNumeralString::concat(a, b).to_bytes_le(), tvb.ct);
             }
         }
@@ -369,32 +568,21 @@ mod tests {
     fn binary() {
         for tv in test_vectors::get().filter(|tv| tv.binary.is_some()) {
             assert_eq!(tv.aes, AesType::AES256);
-
-            let tvpt = tv.pt.iter().map(|b| *b as u8).collect::<Vec<_>>();
-            let tvct = tv.ct.iter().map(|b| *b as u8).collect::<Vec<_>>();
             let tvb = tv.binary.unwrap();
 
-            let (ct, pt, bct, bpt) = {
+            let (bct, bpt) = {
                 let ff = FF1::<Aes256>::new(&tv.key, tv.radix).unwrap();
                 (
-                    ff.encrypt(&tv.tweak, &BinaryNumeralString(tvpt.clone()))
-                        .unwrap(),
-                    ff.decrypt(&tv.tweak, &BinaryNumeralString(tvct.clone()))
-                        .unwrap(),
                     ff.encrypt(&tv.tweak, &BinaryNumeralString::from_bytes_le(&tvb.pt))
                         .unwrap(),
                     ff.decrypt(&tv.tweak, &BinaryNumeralString::from_bytes_le(&tvb.ct))
                         .unwrap(),
                 )
             };
-            assert_eq!(pt.to_bytes_le(), tvb.pt);
-            assert_eq!(ct.to_bytes_le(), tvb.ct);
             assert_eq!(bpt.to_bytes_le(), tvb.pt);
             assert_eq!(bct.to_bytes_le(), tvb.ct);
-            assert_eq!(pt.0, tvpt);
-            assert_eq!(ct.0, tvct);
-            assert_eq!(bpt.0, tvpt);
-            assert_eq!(bct.0, tvct);
+            assert_eq!(bpt.0, tvb.pt);
+            assert_eq!(bct.0, tvb.ct);
         }
     }
 }
