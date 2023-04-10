@@ -31,10 +31,10 @@ trait Numeral {
     /// Returns the big-endian byte representation of this integer.
     fn to_bytes(&self, b: usize) -> Self::Bytes;
 
-    /// Compute (self + other) mod radix^m
+    /// Computes `(self + other) mod radix^m`.
     fn add_mod_exp(self, other: Self, radix: u32, m: usize) -> Self;
 
-    /// Compute (self - other) mod radix^m
+    /// Computes `(self - other) mod radix^m`.
     fn sub_mod_exp(self, other: Self, radix: u32, m: usize) -> Self;
 }
 
@@ -208,8 +208,9 @@ impl NumeralString for BinaryNumeralString {
         // The strategy taken in `FlexibleNumeralString` (which `BinaryNumeralString`
         // previously also used) is to parse the little-endian byte string into (what is
         // effectively) a `Vec<bool>`, and then read that as a big-endian bit pattern to
-        // compute the corresponding `BigUint` arithmetic value. For binary data we can do
-        // better, but we need to take care about how the data is parsed at each step.
+        // compute the corresponding `BigUint` arithmetic value. For binary data that is
+        // a multiple of 8 bits in length we can do better, but we need to take care about
+        // how the data is parsed at each step.
         //
         // Say the input was 5 bytes (for the sake of illustration, so we can show both
         // multiple bytes and how half-bytes / "nibbles" are handled). Let's draw out the

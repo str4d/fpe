@@ -136,15 +136,16 @@ pub trait Operations: Sized {
     /// Returns the number of numerals in this numeral sub-string.
     fn numeral_count(&self) -> usize;
 
-    /// Encodes the number that this numeral string represents in the base
-    /// radix as a byte string, by valuing the numerals in decreasing order
-    /// of significance (big-endian order).
+    /// Returns a `b`-byte big-endian representation of the number that is
+    /// encoded in base `radix` by this numeral string. The numerals are
+    /// valued in decreasing order of significance (big-endian order).
+    /// This corresponds to $STR^{b}_{256}(NUM_{radix}(X))$ in the NIST spec.
     fn to_be_bytes(&self, radix: u32, b: usize) -> Self::Bytes;
 
-    /// Compute (self + other) mod radix^m, where other is big-endian.
+    /// Computes `(self + other) mod radix^m`.
     fn add_mod_exp(self, other: impl Iterator<Item = u8>, radix: u32, m: usize) -> Self;
 
-    /// Compute (self - other) mod radix^m, where other is big-endian.
+    /// Computes `(self - other) mod radix^m`.
     fn sub_mod_exp(self, other: impl Iterator<Item = u8>, radix: u32, m: usize) -> Self;
 }
 
