@@ -60,37 +60,17 @@ impl Radix {
             return Err(InvalidRadix(radix));
         }
 
-        let mut tmp = radix;
-        let mut log_radix = None;
-        let mut found_bit = false;
-
-        // 2^16 is 17 bits
-        for i in 0..17 {
-            if tmp & 1 != 0 {
-                // Only a single bit can be set for PowerTwo
-                if found_bit {
-                    log_radix = None;
-                } else {
-                    log_radix = Some(i);
-                    found_bit = true;
-                }
-            }
-            tmp >>= 1;
-        }
-        Ok(match log_radix {
-            Some(log_radix) => Radix::PowerTwo {
+        Ok(if radix.count_ones() == 1 {
+            let log_radix = 31 - radix.leading_zeros();
+            Radix::PowerTwo {
                 radix,
-                min_len: cmp::max(
-                    (MIN_RADIX_2_NS_LEN + u32::from(log_radix) - 1) / u32::from(log_radix),
-                    MIN_NS_LEN,
-                ),
-                log_radix,
-            },
-            None => {
-                use libm::{ceil, log10};
-                let min_len = ceil(LOG_10_MIN_NS_DOMAIN_SIZE / log10(f64::from(radix))) as u32;
-                Radix::Any { radix, min_len }
+                min_len: cmp::max((MIN_RADIX_2_NS_LEN + log_radix - 1) / log_radix, MIN_NS_LEN),
+                log_radix: u8::try_from(log_radix).unwrap(),
             }
+        } else {
+            use libm::{ceil, log10};
+            let min_len = ceil(LOG_10_MIN_NS_DOMAIN_SIZE / log10(f64::from(radix))) as u32;
+            Radix::Any { radix, min_len }
         })
     }
 
