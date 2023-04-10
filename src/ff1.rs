@@ -30,13 +30,10 @@ const MAX_NS_LEN: usize = u32::MAX as usize;
 /// The minimum allowed value of radix^minlen.
 ///
 /// Defined in [NIST SP 800-38G Revision 1](https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-38Gr1-draft.pdf).
-#[cfg(test)]
-const MIN_NS_DOMAIN_SIZE: u32 = 1_000_000;
+const MIN_NS_DOMAIN_SIZE: u64 = 1_000_000;
 
 /// `minlen` such that `2^minlen >= MIN_NS_DOMAIN_SIZE`.
 const MIN_RADIX_2_NS_LEN: u32 = 20;
-/// `log_10(MIN_NS_DOMAIN_SIZE)`
-const LOG_10_MIN_NS_DOMAIN_SIZE: f64 = 6.0;
 
 #[cfg(test)]
 const_assert!((1 << MIN_RADIX_2_NS_LEN) >= MIN_NS_DOMAIN_SIZE);
@@ -68,8 +65,14 @@ impl Radix {
                 log_radix: u8::try_from(log_radix).unwrap(),
             }
         } else {
-            use libm::{ceil, log10};
-            let min_len = ceil(LOG_10_MIN_NS_DOMAIN_SIZE / log10(f64::from(radix))) as u32;
+            // If radix is exactly 2^16 then the code below would overflow a u32.
+            let radix_u64 = u64::from(radix);
+            let mut min_len = 1u32;
+            let mut domain = radix_u64;
+            while domain < MIN_NS_DOMAIN_SIZE {
+                domain *= radix_u64;
+                min_len += 1;
+            }
             Radix::Any { radix, min_len }
         })
     }
@@ -371,19 +374,7 @@ impl<CIPH: BlockCipher + BlockEncrypt + Clone> FF1<CIPH> {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        InvalidRadix, Radix, LOG_10_MIN_NS_DOMAIN_SIZE, MIN_NS_DOMAIN_SIZE, MIN_NS_LEN,
-        MIN_RADIX_2_NS_LEN,
-    };
-
-    #[test]
-    fn log_10_min_ns_domain_size() {
-        use libm::pow;
-        assert_eq!(
-            pow(10.0, LOG_10_MIN_NS_DOMAIN_SIZE),
-            f64::from(MIN_NS_DOMAIN_SIZE)
-        );
-    }
+    use super::{InvalidRadix, Radix, MIN_NS_LEN, MIN_RADIX_2_NS_LEN};
 
     #[test]
     fn radix() {
