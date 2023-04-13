@@ -22,7 +22,10 @@
 //! ```
 
 #![cfg_attr(not(any(feature = "std", test)), no_std)]
-#![deny(missing_docs)] // refuse to compile if documentation is missing
+// Refuse to compile if documentation is missing
+#![deny(missing_docs)]
+// Catch documentation errors caused by code changes.
+#![deny(rustdoc::broken_intra_doc_links)]
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
