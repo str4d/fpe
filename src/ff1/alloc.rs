@@ -57,6 +57,7 @@ impl Numeral for BigUint {
 }
 
 /// A numeral string that supports radixes in [2..2^16).
+#[cfg_attr(test, derive(Debug))]
 pub struct FlexibleNumeralString(Vec<u16>);
 
 impl From<Vec<u16>> for FlexibleNumeralString {
@@ -113,6 +114,7 @@ impl NumeralString for FlexibleNumeralString {
 }
 
 /// A numeral string with radix 2.
+#[cfg_attr(test, derive(Debug))]
 pub struct BinaryNumeralString(Vec<u8>);
 
 impl BinaryNumeralString {

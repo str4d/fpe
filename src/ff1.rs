@@ -13,6 +13,9 @@ mod alloc;
 #[cfg(feature = "alloc")]
 pub use self::alloc::{BinaryNumeralString, FlexibleNumeralString};
 
+#[cfg(test)]
+mod proptests;
+
 #[derive(Debug, PartialEq)]
 enum Radix {
     /// A radix in [2..2^16]. It uses floating-point arithmetic.
