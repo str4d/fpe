@@ -1,6 +1,27 @@
 use aes::Aes256;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 use criterion_cycles_per_byte::CyclesPerByte;
+
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+type Criterion_ = Criterion<CyclesPerByte>;
+
+#[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+type Criterion_ = Criterion;
+
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+fn setup_criterion() -> Criterion_ {
+    Criterion::default().with_measurement(CyclesPerByte)
+}
+
+#[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+fn setup_criterion() -> Criterion_ {
+    Criterion::default()
+}
+
+#[cfg(unix)]
+use pprof::criterion::{Output, PProfProfiler};
 
 fn ff1_binary_benchmark(c: &mut Criterion<CyclesPerByte>) {
     let bytes = vec![7; 1000];
@@ -41,9 +62,17 @@ fn ff1_binary_benchmark(c: &mut Criterion<CyclesPerByte>) {
     */
 }
 
+#[cfg(unix)]
 criterion_group!(
     name = benches;
-    config = Criterion::default().with_measurement(CyclesPerByte);
+    config = setup_criterion()
+        .with_profiler(PProfProfiler::new(100, Output::Flamegraph(None)));
+    targets = ff1_binary_benchmark
+);
+#[cfg(not(unix))]
+criterion_group!(
+    name = benches;
+    config = setup_criterion();
     targets = ff1_binary_benchmark
 );
 criterion_main!(benches);

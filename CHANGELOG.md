@@ -7,6 +7,34 @@ and this library adheres to Rust's notion of
 
 ## [Unreleased]
 
+## [0.6.0] - 2023-04-10
+### Added
+- `fpe::ff1`:
+  - `InvalidRadix, NumeralStringError`
+  - `Operations`
+
+### Changed
+- MSRV is now 1.56.0.
+- Bumped dependencies to `cipher 0.4`, `cbc 0.1`.
+  - `aes 0.8` is now the minimum compatible crate version.
+- `fpe::ff1`:
+  - `FF1::new` now returns `Result<_, InvalidRadix>`.
+  - `FF1::{encrypt, decrypt}` now return `Result<_, NumeralStringError>`.
+  - `FF1::{encrypt, decrypt}` now enforce minimum and maximum lengths for
+    numeral strings. The minimum length depends on the radix, while the maximum
+    length is `u32::MAX` numerals (which means `BinaryNumeralString` can process
+    data that is less than 16 MiB).
+  - Refactored `NumeralString` trait:
+    - Renamed `NumeralString::len` to `NumeralString::numeral_count`.
+    - Removed `NumeralString::{Num, num_radix, str_radix}`.
+    - Added `NumeralString::Ops`.
+    - `NumeralString::split` now returns `(Self::Ops, Self::Ops)` instead of
+      `(Self, Self)`.
+    - `NumeralString::concat` now takes `Self::Ops` arguments instead of `Self`.
+
+### Removed
+- `fpe::ff1::Numeral`
+
 ## [0.5.1] - 2021-10-27
 ### Fixed
 - Disabled the `num-bigint`, `num-integer`, and `num-traits` default features.
