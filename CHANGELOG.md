@@ -6,6 +6,12 @@ and this library adheres to Rust's notion of
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed
+- `fpe::ff1::BinaryNumeralString` was refactored in 0.6.0 to greatly improve
+  performance. However the new implementation had a bug that swapped the two
+  halves of the output of `FF1::{encrypt, decrypt}` when provided with an input
+  `BinaryNumeralString` containing an even number of bytes. This release fixes
+  the bug, restoring compatibility with crate versions `0.5` and earlier.
 
 ## [0.6.0] - 2023-04-10
 ### Added

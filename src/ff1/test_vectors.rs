@@ -326,5 +326,24 @@ pub(crate) fn get() -> impl Iterator<Item = TestVector> {
                 ],
             }),
         },
+        // Specific test cases
+        TestVector {
+            aes: AesType::AES256,
+            key: vec![0; 32],
+            radix: 2,
+            tweak: vec![],
+            pt: vec![
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0,
+            ],
+            ct: vec![
+                1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1,
+                1, 0, 0, 0,
+            ],
+            binary: Some(BinaryTestVector {
+                pt: vec![0x00, 0x00, 0x00, 0x00],
+                ct: vec![0x7b, 0xf9, 0x4, 0x1b],
+            }),
+        },
     ])
 }

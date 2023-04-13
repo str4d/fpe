@@ -295,9 +295,9 @@ impl NumeralString for BinaryNumeralString {
         // we are doing in this method.
         BinaryNumeralString(if a.num_bits % 8 == 0 {
             // Simple case: no shifting necessary, just reversing and joining.
-            a.data
+            b.data
                 .into_iter()
-                .chain(b.data.into_iter())
+                .chain(a.data.into_iter())
                 .map(|b| b.reverse_bits())
                 .rev()
                 .collect()

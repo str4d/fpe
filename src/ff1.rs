@@ -20,6 +20,9 @@ mod alloc;
 pub use self::alloc::{BinaryNumeralString, FlexibleNumeralString};
 
 #[cfg(test)]
+mod proptests;
+
+#[cfg(test)]
 mod test_vectors;
 
 /// The minimum allowed numeral string length for any radix.
