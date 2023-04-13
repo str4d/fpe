@@ -2,12 +2,19 @@ use aes::Aes256;
 use num_integer::Integer;
 use proptest::prelude::*;
 
-use super::{BinaryNumeralString, FlexibleNumeralString, FF1};
+use super::{BinaryNumeralString, FlexibleNumeralString, NumeralStringError, Radix, FF1};
 
 prop_compose! {
     fn valid_radix()(radix in 2u32..=(1 << 16)) -> (u32, u16, usize) {
         let max_numeral = (radix - 1) as u16;
-        let min_len = 0;
+        let min_len = match Radix::from_u32(radix)
+            .unwrap()
+            .check_ns_length(0)
+            .unwrap_err()
+        {
+            NumeralStringError::TooShort { min_len, .. } => min_len,
+            _ => unreachable!(),
+        };
         (radix, max_numeral, min_len)
     }
 }
