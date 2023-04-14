@@ -25,6 +25,9 @@ mod proptests;
 #[cfg(test)]
 mod test_vectors;
 
+#[cfg(test)]
+mod ff1_18;
+
 /// The minimum allowed numeral string length for any radix.
 const MIN_NS_LEN: u32 = 2;
 /// The maximum allowed numeral string length for any radix.
@@ -215,24 +218,35 @@ fn generate_s<'a, CIPH: BlockEncrypt>(
         .take(d)
 }
 
+/// A struct for performing FF1 encryption and decryption operations
+/// using the default 10 Feistel rounds
+pub type FF1<CIPH> = FF1fr<10, CIPH>;
+
+/// A struct for performing hardened FF1 encryption and decryption operations
+/// using 18 Feistel rounds
+pub type FF1h<CIPH> = FF1fr<18, CIPH>;
+
 /// A struct for performing FF1 encryption and decryption operations.
-pub struct FF1<CIPH: BlockCipher> {
+/// with an adjustable number of Feistel rounds
+pub struct FF1fr<const FEISTEL_ROUNDS: u8, CIPH: BlockCipher> {
     ciph: CIPH,
     radix: Radix,
 }
 
-impl<CIPH: BlockCipher + KeyInit> FF1<CIPH> {
+impl<const FEISTEL_ROUNDS: u8, CIPH: BlockCipher + KeyInit> FF1fr<FEISTEL_ROUNDS, CIPH> {
     /// Creates a new FF1 object for the given key and radix.
     ///
     /// Returns an error if the given radix is not in [2..2^16].
     pub fn new(key: &[u8], radix: u32) -> Result<Self, InvalidRadix> {
         let ciph = CIPH::new(GenericArray::from_slice(key));
         let radix = Radix::from_u32(radix)?;
-        Ok(FF1 { ciph, radix })
+        Ok(FF1fr { ciph, radix })
     }
 }
 
-impl<CIPH: BlockCipher + BlockEncrypt + Clone> FF1<CIPH> {
+impl<const FEISTEL_ROUNDS: u8, CIPH: BlockCipher + BlockEncrypt + Clone>
+    FF1fr<FEISTEL_ROUNDS, CIPH>
+{
     /// Encrypts the given numeral string.
     ///
     /// Returns an error if the numeral string is not in the required radix.
@@ -276,7 +290,7 @@ impl<CIPH: BlockCipher + BlockEncrypt + Clone> FF1<CIPH> {
         for _ in 0..((((-(t as i32) - (b as i32) - 1) % 16) + 16) % 16) {
             prf.update(&[0]);
         }
-        for i in 0..10 {
+        for i in 0..FEISTEL_ROUNDS {
             let mut prf = prf.clone();
             prf.update(&[i]);
             prf.update(x_b.to_be_bytes(self.radix.to_u32(), b).as_ref());
@@ -346,8 +360,8 @@ impl<CIPH: BlockCipher + BlockEncrypt + Clone> FF1<CIPH> {
         for _ in 0..((((-(t as i32) - (b as i32) - 1) % 16) + 16) % 16) {
             prf.update(&[0]);
         }
-        for i in 0..10 {
-            let i = 9 - i;
+        for i in 0..FEISTEL_ROUNDS {
+            let i = FEISTEL_ROUNDS - 1 - i;
             let mut prf = prf.clone();
             prf.update(&[i]);
             prf.update(x_a.to_be_bytes(self.radix.to_u32(), b).as_ref());
