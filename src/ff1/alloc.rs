@@ -97,7 +97,7 @@ impl NumeralString for FlexibleNumeralString {
     type Ops = Self;
 
     fn is_valid(&self, radix: u32) -> bool {
-        self.0.iter().all(|n| (u32::from(*n) < radix))
+        self.0.iter().all(|n| u32::from(*n) < radix)
     }
 
     fn numeral_count(&self) -> usize {
@@ -171,7 +171,7 @@ impl BinaryNumeralString {
         BinaryNumeralString(s.to_vec())
     }
 
-    /// Returns a Vec<u8>, with each byte written from the BinaryNumeralString
+    /// Returns a Vec, with each byte written from the BinaryNumeralString
     /// in little-endian bit order.
     pub fn to_bytes_le(&self) -> Vec<u8> {
         self.0.to_vec()
@@ -297,7 +297,7 @@ impl NumeralString for BinaryNumeralString {
             // Simple case: no shifting necessary, just reversing and joining.
             b.data
                 .into_iter()
-                .chain(a.data.into_iter())
+                .chain(a.data)
                 .map(|b| b.reverse_bits())
                 .rev()
                 .collect()

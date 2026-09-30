@@ -4,8 +4,7 @@
 use core::cmp;
 
 use cipher::{
-    generic_array::GenericArray, Block, BlockCipher, BlockEncrypt, BlockEncryptMut, InnerIvInit,
-    KeyInit,
+    common::IvState, Array, Block, BlockCipherEncrypt, BlockModeEncrypt, InnerIvInit, KeyInit,
 };
 
 #[cfg(test)]
@@ -64,7 +63,7 @@ impl Radix {
             let log_radix = 31 - radix.leading_zeros();
             Radix::PowerTwo {
                 radix,
-                min_len: cmp::max((MIN_RADIX_2_NS_LEN + log_radix - 1) / log_radix, MIN_NS_LEN),
+                min_len: cmp::max(MIN_RADIX_2_NS_LEN.div_ceil(log_radix), MIN_NS_LEN),
                 log_radix: u8::try_from(log_radix).unwrap(),
             }
         } else {
@@ -156,20 +155,29 @@ pub trait NumeralString: Sized {
     fn concat(a: Self::Ops, b: Self::Ops) -> Self;
 }
 
-#[derive(Clone)]
-struct Prf<CIPH: BlockCipher + BlockEncrypt> {
+struct Prf<CIPH: BlockCipherEncrypt> {
     state: cbc::Encryptor<CIPH>,
     // Contains the output when offset = 0, and partial input otherwise
     buf: [Block<CIPH>; 1],
     offset: usize,
 }
 
-impl<CIPH: BlockCipher + BlockEncrypt + Clone> Prf<CIPH> {
+impl<CIPH: BlockCipherEncrypt + Clone> Prf<CIPH> {
+    fn fork(&self, ciph: &CIPH) -> Self {
+        Self {
+            state: cbc::Encryptor::inner_iv_init(ciph.clone(), &self.state.iv_state()),
+            buf: self.buf.clone(),
+            offset: self.offset,
+        }
+    }
+}
+
+impl<CIPH: BlockCipherEncrypt + Clone> Prf<CIPH> {
     fn new(ciph: &CIPH) -> Self {
         let ciph = ciph.clone();
         Prf {
-            state: cbc::Encryptor::inner_iv_init(ciph, GenericArray::from_slice(&[0; 16])),
-            buf: [Block::<CIPH>::default()],
+            state: cbc::Encryptor::inner_iv_init(ciph, &Array::from_fn(|_| 0)),
+            buf: [Block::<CIPH>::from_fn(|_| 0)],
             offset: 0,
         }
     }
@@ -182,7 +190,7 @@ impl<CIPH: BlockCipher + BlockEncrypt + Clone> Prf<CIPH> {
             data = &data[to_read..];
 
             if self.offset == self.buf[0].len() {
-                self.state.encrypt_blocks_mut(&mut self.buf);
+                self.state.encrypt_blocks(&mut self.buf);
                 self.offset = 0;
             }
         }
@@ -197,7 +205,7 @@ impl<CIPH: BlockCipher + BlockEncrypt + Clone> Prf<CIPH> {
     }
 }
 
-fn generate_s<'a, CIPH: BlockEncrypt>(
+fn generate_s<'a, CIPH: BlockCipherEncrypt>(
     ciph: &'a CIPH,
     r: &'a Block<CIPH>,
     d: usize,
@@ -216,23 +224,25 @@ fn generate_s<'a, CIPH: BlockEncrypt>(
 }
 
 /// A struct for performing FF1 encryption and decryption operations.
-pub struct FF1<CIPH: BlockCipher> {
+pub struct FF1<CIPH> {
     ciph: CIPH,
     radix: Radix,
 }
 
-impl<CIPH: BlockCipher + KeyInit> FF1<CIPH> {
+impl<CIPH: KeyInit> FF1<CIPH> {
     /// Creates a new FF1 object for the given key and radix.
     ///
     /// Returns an error if the given radix is not in [2..2^16].
+    ///
+    /// Panics if the key size does not match that expected by the cipher.
     pub fn new(key: &[u8], radix: u32) -> Result<Self, InvalidRadix> {
-        let ciph = CIPH::new(GenericArray::from_slice(key));
+        let ciph = CIPH::new(key.try_into().expect("Invalid key length"));
         let radix = Radix::from_u32(radix)?;
         Ok(FF1 { ciph, radix })
     }
 }
 
-impl<CIPH: BlockCipher + BlockEncrypt + Clone> FF1<CIPH> {
+impl<CIPH: BlockCipherEncrypt + Clone> FF1<CIPH> {
     /// Encrypts the given numeral string.
     ///
     /// Returns an error if the numeral string is not in the required radix.
@@ -277,7 +287,7 @@ impl<CIPH: BlockCipher + BlockEncrypt + Clone> FF1<CIPH> {
             prf.update(&[0]);
         }
         for i in 0..10 {
-            let mut prf = prf.clone();
+            let mut prf = prf.fork(&self.ciph);
             prf.update(&[i]);
             prf.update(x_b.to_be_bytes(self.radix.to_u32(), b).as_ref());
             let r = prf.output();
@@ -348,7 +358,7 @@ impl<CIPH: BlockCipher + BlockEncrypt + Clone> FF1<CIPH> {
         }
         for i in 0..10 {
             let i = 9 - i;
-            let mut prf = prf.clone();
+            let mut prf = prf.fork(&self.ciph);
             prf.update(&[i]);
             prf.update(x_a.to_be_bytes(self.radix.to_u32(), b).as_ref());
             let r = prf.output();

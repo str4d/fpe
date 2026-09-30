@@ -56,7 +56,7 @@ proptest! {
         key in prop::array::uniform32(prop::num::u8::ANY),
         (radix, _, _) in valid_radix(),
     ) {
-        assert!(matches!(FF1::<Aes256>::new(&key, radix), Ok(_)));
+        assert!(FF1::<Aes256>::new(&key, radix).is_ok());
     }
 
     #[test]
