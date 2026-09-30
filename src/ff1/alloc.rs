@@ -5,20 +5,9 @@ use core::iter;
 use alloc::{vec, vec::Vec};
 
 use num_bigint::{BigInt, BigUint, Sign};
-use num_traits::{
-    ToPrimitive,
-    identities::{One, Zero},
-};
+use num_traits::{Pow, ToPrimitive, identities::Zero};
 
 use super::{NumeralString, Operations};
-
-fn pow(x: u32, e: usize) -> BigUint {
-    let mut res = BigUint::one();
-    for _ in 0..e {
-        res *= x;
-    }
-    res
-}
 
 /// Extension trait adding FF1-relevant methods to `BigUint`.
 trait Numeral {
@@ -62,11 +51,11 @@ impl Numeral for BigUint {
     }
 
     fn add_mod_exp(self, other: Self, radix: u32, m: usize) -> Self {
-        (self + other) % pow(radix, m)
+        (self + other) % BigUint::from(radix).pow(m)
     }
 
     fn sub_mod_exp(self, other: Self, radix: u32, m: usize) -> Self {
-        let modulus = BigInt::from(pow(radix, m));
+        let modulus = BigInt::from(radix).pow(m);
         let mut c = (BigInt::from(self) - BigInt::from(other)) % &modulus;
         if c.sign() == Sign::Minus {
             // use ((x % m) + m) % m to ensure it is in range
