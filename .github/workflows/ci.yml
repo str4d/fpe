@@ -12,7 +12,9 @@ jobs:
           - wasm32-wasip1
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Add target
         run: rustup target add ${{ matrix.target }}
       - name: cargo build
@@ -26,7 +28,9 @@ jobs:
         os: [ubuntu-latest, windows-latest, macOS-latest]
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Run tests
         run: cargo test --locked --verbose
 
@@ -34,17 +38,21 @@ jobs:
     name: Bitrot check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       # Build benchmarks to prevent bitrot
       - name: Build benchmarks
-        run: cargo build --all --benches
+        run: cargo build --benches
 
   clippy-test:
     name: Clippy (MSRV)
     timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - run: rustup component add clippy
       - name: Run clippy
         uses: actions-rs/clippy-check@v1
@@ -59,7 +67,9 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@beta
         id: toolchain
       - run: rustup override set ${{steps.toolchain.outputs.name}}
@@ -76,15 +86,19 @@ jobs:
     name: Intra-doc links
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       # Requires #![deny(rustdoc::broken_intra_doc_links)] in crates.
       - name: Check intra-doc links
-        run: cargo doc --document-private-items
+        run: cargo doc --all-features --document-private-items
 
   fmt:
     name: Rustfmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Check formatting
         run: cargo fmt -- --check
