@@ -6,6 +6,8 @@ and this library adheres to Rust's notion of
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.7.0] - 2026-09-30
 ### Changed
 - MSRV is now 1.85.0.
 - Bumped dependencies to `cipher 0.5.1`, `cbc 0.2`.
