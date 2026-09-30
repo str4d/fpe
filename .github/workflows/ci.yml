@@ -16,7 +16,7 @@ jobs:
       - name: Add target
         run: rustup target add ${{ matrix.target }}
       - name: cargo build
-        run: cargo build --verbose --no-default-features
+        run: cargo build --locked --verbose --no-default-features
 
   test:
     name: Test on ${{ matrix.os }}
@@ -27,20 +27,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@1.85.0
-        id: toolchain
-      - run: rustup override set ${{steps.toolchain.outputs.name}}
       - name: Run tests
-        run: cargo test --verbose
+        run: cargo test --locked --verbose
 
   bitrot:
     name: Bitrot check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@1.85.0
-        id: toolchain
-      - run: rustup override set ${{steps.toolchain.outputs.name}}
       # Build benchmarks to prevent bitrot
       - name: Build benchmarks
         run: cargo build --all --benches
@@ -51,9 +45,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@1.85.0
-        id: toolchain
-      - run: rustup override set ${{steps.toolchain.outputs.name}}
       - run: rustup component add clippy
       - name: Run clippy
         uses: actions-rs/clippy-check@v1
