@@ -2,7 +2,7 @@ use aes::Aes256;
 use num_integer::Integer;
 use proptest::prelude::*;
 
-use super::{BinaryNumeralString, FlexibleNumeralString, NumeralStringError, Radix, FF1};
+use super::{BinaryNumeralString, FF1, FlexibleNumeralString, NumeralStringError, Radix};
 
 prop_compose! {
     fn valid_radix()(radix in 2u32..=(1 << 16)) -> (u32, u16, usize) {

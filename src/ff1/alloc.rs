@@ -6,8 +6,8 @@ use alloc::{vec, vec::Vec};
 
 use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::{
-    identities::{One, Zero},
     ToPrimitive,
+    identities::{One, Zero},
 };
 
 use super::{NumeralString, Operations};
@@ -409,8 +409,8 @@ mod tests {
 
     use super::{BinaryNumeralString, FlexibleNumeralString};
     use crate::ff1::{
+        FF1, NumeralString, NumeralStringError,
         test_vectors::{self, AesType},
-        NumeralString, NumeralStringError, FF1,
     };
 
     #[test]
@@ -451,9 +451,10 @@ mod tests {
                 min_len: 20,
             },
         );
-        assert!(ff
-            .encrypt(&[], &BinaryNumeralString::from_bytes_le(&[0; 3]))
-            .is_ok());
+        assert!(
+            ff.encrypt(&[], &BinaryNumeralString::from_bytes_le(&[0; 3]))
+                .is_ok()
+        );
     }
 
     #[test]
@@ -492,9 +493,10 @@ mod tests {
                 min_len: 6,
             },
         );
-        assert!(ff
-            .encrypt(&[], &FlexibleNumeralString::from(vec![0; 6]))
-            .is_ok());
+        assert!(
+            ff.encrypt(&[], &FlexibleNumeralString::from(vec![0; 6]))
+                .is_ok()
+        );
     }
 
     #[test]

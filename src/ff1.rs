@@ -4,7 +4,7 @@
 use core::cmp;
 
 use cipher::{
-    common::IvState, Array, Block, BlockCipherEncrypt, BlockModeEncrypt, InnerIvInit, KeyInit,
+    Array, Block, BlockCipherEncrypt, BlockModeEncrypt, InnerIvInit, KeyInit, common::IvState,
 };
 
 #[cfg(test)]
@@ -387,7 +387,7 @@ impl<CIPH: BlockCipherEncrypt + Clone> FF1<CIPH> {
 
 #[cfg(test)]
 mod tests {
-    use super::{InvalidRadix, Radix, MIN_NS_LEN, MIN_RADIX_2_NS_LEN};
+    use super::{InvalidRadix, MIN_NS_LEN, MIN_RADIX_2_NS_LEN, Radix};
 
     #[test]
     fn radix() {
